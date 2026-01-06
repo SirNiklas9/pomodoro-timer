@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pomodoro Timer</title>
+</head>
+<body>
+    <h1>Pomodoro Timer</h1>
+    <div id="status">Connecting</div>
+    <div id="timer">25:00</div>
+
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+    <button id="reset">Reset</button>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        const status = document.getElementById('status');
+
+        ws.onopen = () => {
+            status.textContent = 'Connected';
+        };
+
+        ws.onmessage = (event) => {
+            console.log("Got message: ", event.data);
+            const data = JSON.parse(event.data);
+            console.log("Parsed: ", data);
+            if (data.type == "tick") {
+                const minutes = Math.floor(data.timeLeft / 60);
+                const seconds = data.timeLeft % 60;
+                const timer = document.getElementById('timer');
+                timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            }
+        };
+
+        ws.onclose = () => {
+            status.textContent = 'Disconnected';
+        };
+
+        document.getElementById('start').onclick = () => {
+            ws.send(JSON.stringify({type: 'start'}));
+        };
+
+        document.getElementById('stop').onclick = () => {
+            ws.send(JSON.stringify({type: 'stop'}));
+        };
+
+        document.getElementById('reset').onclick = () => {
+            ws.send(JSON.stringify({type: 'reset'}));
+        };
+    </script>
+</body>
+</html>
