@@ -25,6 +25,10 @@
             complexComplete: new Audio("/sounds/complex-ding.mp3"),
             }
 
+        if (Notification.permission == "default") {
+            Notification.requestPermission();
+        }
+
         ws.onopen = () => {
             status.textContent = 'Connected';
         };
@@ -42,6 +46,12 @@
 
             if (data.timeLeft == 0) {
                 sounds.complexComplete.play();
+                if (Notification.permission == "granted") {
+                    new Notification("Pomodoro Complete!", {
+                        body: "Time for a break!",
+                        icon: "/icon.png"
+                    });
+                }
             }
         };
 
@@ -50,6 +60,7 @@
         };
 
         document.getElementById('start').onclick = () => {
+            Notification.requestPermission();
             ws.send(JSON.stringify({type: 'start'}));
             sounds.start.play();
         };
