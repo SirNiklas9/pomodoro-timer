@@ -47,8 +47,10 @@
             username = document.getElementById("username").value.trim();
             if (!username) return;
 
-            if (Notification.permission == "default") {
-                Notification.requestPermission();
+            if (typeof Notification !== 'undefined') {
+                if (Notification.permission == "default") {
+                    Notification.requestPermission();
+                }
             }
 
             // Hide login, show app
@@ -78,11 +80,13 @@
 
                 if (data.time == 0) {
                     sounds.complexComplete.play();
-                    if (Notification.permission == "granted") {
-                        new Notification("Bananadoro Complete!", {
-                            body: "Time for a break!",
-                            icon: "/images/BananadoroLogo.png"
-                        });
+                    if (typeof Notification !== 'undefined') {
+                        if (Notification.permission == "granted") {
+                            new Notification("Bananadoro Complete!", {
+                                body: "Time for a break!",
+                                icon: "/images/BananadoroLogo.png"
+                            });
+                        }
                     }
                 }
             };
@@ -93,7 +97,9 @@
         };
 
         document.getElementById('start').onclick = () => {
-            Notification.requestPermission();
+            if (typeof Notification !== 'undefined') {
+                Notification.requestPermission();
+            }
             ws.send(JSON.stringify({type: 'start'}));
             sounds.start.play();
         };
