@@ -5,6 +5,13 @@ import { ServerWebSocket } from "bun";
 
 const clients = new Set<ServerWebSocket>();
 
+let isRunning = false;
+
+let mode: "work" | "break" = "work";
+let workTime = 25 * 60;
+let breakTime = 5 * 60;
+let timeLeft = workTime // 25 minutes in seconds
+
 const server = Bun.serve({
     port: 3000,
     fetch(req, server) {
@@ -38,14 +45,22 @@ const server = Bun.serve({
         message(ws, message) {
             console.log("Message Received", message.toString());
             const data = JSON.parse(message.toString());
+            console.log("data.type is:", data.type);
+            console.log("Checking mode:", data.type === "mode");
             if (data.type === "start") {
                 isRunning = true;
             } else if (data.type === "stop") {
                 isRunning = false;
             } else if (data.type == "reset") {
-                timeLeft = 3;
+                timeLeft = mode == "work" ? workTime : breakTime;
                 isRunning = false;
-                broadcast(JSON.stringify({type: "tick", timeLeft: timeLeft}));
+                broadcast(JSON.stringify({type: "tick", time: timeLeft}));
+            } else if (data.type == "mode") {
+                mode = data.mode;
+                timeLeft = mode == "work" ? workTime : breakTime;
+                isRunning = false;
+                console.log("Broadcast");
+                broadcast(JSON.stringify({ type: "tick", time: timeLeft, mode: mode}));
             }
         },
         close(ws) {
@@ -54,9 +69,6 @@ const server = Bun.serve({
         },
     },
 });
-
-let timeLeft = 3 // 25 minutes in seconds
-let isRunning = false;
 
 // Broadcast to all connected clients
 function broadcast(message: string) {
@@ -71,7 +83,7 @@ setInterval(() => {
     console.log("Tick - isRunning:", isRunning, "timeLeft:", timeLeft);
     if (isRunning && timeLeft > 0) {
         timeLeft--;
-        broadcast(JSON.stringify({type: "tick", timeLeft: timeLeft}));
+        broadcast(JSON.stringify({type: "tick", time: timeLeft, mode: mode}));
     }
 }, 1000);
 

@@ -8,7 +8,8 @@
 <body>
     <h1>Pomodoro Timer</h1>
     <div id="status">Connecting</div>
-    <div id="timer">00:03</div>
+    <button id="timerMode">Switch Mode</button>
+    <div id="timer">25:00</div>
 
     <button id="start">Start</button>
     <button id="stop">Stop</button>
@@ -25,6 +26,8 @@
             complexComplete: new Audio("/sounds/complex-ding.mp3"),
             }
 
+        let mode = 'work';
+
         if (Notification.permission == "default") {
             Notification.requestPermission();
         }
@@ -38,13 +41,13 @@
             const data = JSON.parse(event.data);
             console.log("Parsed: ", data);
             if (data.type == "tick") {
-                const minutes = Math.floor(data.timeLeft / 60);
-                const seconds = data.timeLeft % 60;
+                const minutes = Math.floor(data.time / 60);
+                const seconds = data.time % 60;
                 const timer = document.getElementById('timer');
                 timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
             }
 
-            if (data.timeLeft == 0) {
+            if (data.time == 0) {
                 sounds.complexComplete.play();
                 if (Notification.permission == "granted") {
                     new Notification("Pomodoro Complete!", {
@@ -73,6 +76,19 @@
         document.getElementById('reset').onclick = () => {
             ws.send(JSON.stringify({type: 'reset'}));
             sounds.reset.play();
+        };
+
+        document.getElementById('timerMode').onclick = () => {
+            if (mode == "work") {
+                mode = "break";
+                document.getElementById('timerMode').textContent = "MODE: BREAK"
+                ws.send(JSON.stringify({type: "mode", mode: 'break'}))
+            }
+            else if (mode == "break") {
+                mode = "work";
+                document.getElementById('timerMode').textContent = "MODE: WORK"
+                ws.send(JSON.stringify({type: "mode", mode: 'work'}))
+            }
         };
     </script>
 </body>
