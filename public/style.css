@@ -1,0 +1,36 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background: #1a1a1a;
+    color: white;
+}
+
+#timer {
+    font-size: 6rem;
+    font-weight: bold;
+    margin: 2rem 0;
+}
+
+button {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    margin: 0.5rem;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    background: #e74c3c;
+    color: white;
+}
+
+button:hover {
+    background: #c0392b;
+}
+
+#status {
+    color: #888;
+}

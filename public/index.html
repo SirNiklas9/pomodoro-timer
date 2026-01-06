@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
     <title>Pomodoro Timer</title>
 </head>
 <body>
     <h1>Pomodoro Timer</h1>
     <div id="status">Connecting</div>
-    <div id="timer">25:00</div>
+    <div id="timer">00:03</div>
 
     <button id="start">Start</button>
     <button id="stop">Stop</button>
@@ -16,6 +17,13 @@
     <script>
         const ws = new WebSocket('ws://localhost:3000');
         const status = document.getElementById('status');
+        const sounds = {
+            start: new Audio("/sounds/start.mp3"),
+            stop: new Audio("/sounds/stop.mp3"),
+            reset: new Audio("/sounds/reset.mp3"),
+            simpleComplete: new Audio("/sounds/simple-ding.mp3"),
+            complexComplete: new Audio("/sounds/complex-ding.mp3"),
+            }
 
         ws.onopen = () => {
             status.textContent = 'Connected';
@@ -31,6 +39,10 @@
                 const timer = document.getElementById('timer');
                 timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
             }
+
+            if (data.timeLeft == 0) {
+                sounds.complexComplete.play();
+            }
         };
 
         ws.onclose = () => {
@@ -39,14 +51,17 @@
 
         document.getElementById('start').onclick = () => {
             ws.send(JSON.stringify({type: 'start'}));
+            sounds.start.play();
         };
 
         document.getElementById('stop').onclick = () => {
             ws.send(JSON.stringify({type: 'stop'}));
+            sounds.stop.play();
         };
 
         document.getElementById('reset').onclick = () => {
             ws.send(JSON.stringify({type: 'reset'}));
+            sounds.reset.play();
         };
     </script>
 </body>

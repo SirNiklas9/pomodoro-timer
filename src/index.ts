@@ -8,9 +8,24 @@ const clients = new Set<ServerWebSocket>();
 const server = Bun.serve({
     port: 3000,
     fetch(req, server) {
+        const url = new URL(req.url)
+
         if (server.upgrade(req)) {
             return;
         }
+
+        if (url.pathname == "/style.css") {
+            return new Response(file("./public/style.css"), {
+                headers: { "Content-Type": "text/css" },
+            });
+        }
+
+        if (url.pathname.startsWith("/sounds/")) {
+            return new Response(file("./public" + url.pathname), {
+                headers: { "Content-Type": "audio/mpeg" },
+            });
+        }
+
         return new Response(file("./public/index.html"), {
             headers: {"content-type": "text/html",},
         });
@@ -27,10 +42,10 @@ const server = Bun.serve({
                 isRunning = true;
             } else if (data.type === "stop") {
                 isRunning = false;
-            } else if (data.time == "reset") {
-                timeLeft = 25 * 60;
+            } else if (data.type == "reset") {
+                timeLeft = 3;
                 isRunning = false;
-                broadcast(JSON.stringify({type: "time", time: timeLeft}));
+                broadcast(JSON.stringify({type: "tick", timeLeft: timeLeft}));
             }
         },
         close(ws) {
@@ -40,7 +55,7 @@ const server = Bun.serve({
     },
 });
 
-let timeLeft = 25 * 60 // 25 minutes in seconds
+let timeLeft = 3 // 25 minutes in seconds
 let isRunning = false;
 
 // Broadcast to all connected clients
