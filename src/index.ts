@@ -97,6 +97,14 @@ const server = Bun.serve({
                 const room = rooms.get(roomName);
                 if (room) {
                     room.clients.delete(ws);
+                    if (room.clients.size === 0) {
+                        // Delete after 5 minutes if still empty
+                        setTimeout(() => {
+                            if (room.clients.size === 0) {
+                                rooms.delete(roomName);
+                            }
+                        }, 5 * 60 * 1000);
+                    }
                 }
                 socketToRoom.delete(ws);
             }

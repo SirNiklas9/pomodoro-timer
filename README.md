@@ -8,7 +8,7 @@ WebSocket-based Pomodoro timer backend built with Bun and TypeScript. Designed t
 
 ## Status
 
-✅ Released v1.0.0
+✅ Released v1.1.0
 
 ## Tech Stack
 
@@ -21,13 +21,14 @@ WebSocket-based Pomodoro timer backend built with Bun and TypeScript. Designed t
 - Sound effects and notifications
 - User sessions - sync across devices
 - Desktop app (Windows)
+- Mobile app (Android)
 
 ## Usage
 
 ### Web
 Visit [bananadoro.bananalabs.cloud](https://bananadoro.bananalabs.cloud)
 
-### Desktop
+### Desktop & Mobile
 Download from [Releases](https://github.com/sirniklas9/pomodoro-timer/releases)
 
 ### Self-host (Docker)

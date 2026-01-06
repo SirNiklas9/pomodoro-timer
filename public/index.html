@@ -12,7 +12,7 @@
     <div id="status">Waiting</div>
 
     <div id="login">
-        <input type="text" id="username" placeholder="Enter username">
+        <input type="text" id="username" placeholder="Enter a room name">
         <button id="joinBtn">Login</button>
     </div>
 
@@ -43,27 +43,37 @@
         let username;
         let mode = 'work';
 
-        document.getElementById("joinBtn").onclick = () => {
-            username = document.getElementById("username").value.trim();
-            if (!username) return;
+        let isAppVisible = true;
+        let lastTime = null;
 
-            if (typeof Notification !== 'undefined') {
-                if (Notification.permission == "default") {
-                    Notification.requestPermission();
+        if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.App) {
+            Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+                isAppVisible = state.isActive;
+
+                // Reconnect if coming back and disconnected
+                if (state.isActive && ws && ws.readyState !== WebSocket.OPEN) {
+                    connectWebSocket();
                 }
-            }
+            });
+        } else {
+            // Browser fallback
+            document.addEventListener('visibilitychange', () => {
+                isAppVisible = !document.hidden;
+                if (!document.hidden && ws && ws.readyState !== WebSocket.OPEN) {
+                    connectWebSocket();
+                }
+            });
+        }
 
-            // Hide login, show app
-            document.getElementById("login").style.display = "none";
-            document.getElementById("app").style.display = "block";
-
-            // Connect and join
+        function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}`);
 
             ws.onopen = () => {
-                ws.send(JSON.stringify({ type: "join", username: username }));
-                document.getElementById("status").textContent = "Connected to room " + username;
+                if (username) {
+                    ws.send(JSON.stringify({type: "join", username: username}));
+                    document.getElementById("status").textContent = "Connected to room " + username;
+                }
             };
 
             ws.onmessage = (event) => {
@@ -78,24 +88,83 @@
                         data.mode === "work" ? "Work" : "Break";
                 }
 
-                if (data.time == 0) {
-                    sounds.complexComplete.play();
-                    if (typeof Notification !== 'undefined') {
-                        if (Notification.permission == "granted") {
-                            new Notification("Bananadoro Complete!", {
-                                body: "Time for a break!",
-                                icon: "/images/BananadoroLogo.png"
-                            });
-                        }
+                if (data.time == 0 && lastTime !== null && lastTime > 0) {
+                    let title = mode === "work" ? "Work Session Complete!" : "Break Session Complete!";
+                    let body = mode === "work" ? "Time for a break!" : "Time to work!";
+
+                    // Play sound only if visible
+                    if (isAppVisible) {
+                        sounds.complexComplete.play();
                     }
+
+                    // Tauri (Windows/Mac/Linux desktop)
+                    if (window.__TAURI__?.notification) {
+                        window.__TAURI__.notification.sendNotification({
+                            title: title,
+                            body: body,
+                            icon: '/images/BananadoroLogo.png'
+                        });
+                    }
+
+                    // Native notification (Capacitor)
+                    if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.LocalNotifications) {
+                        Capacitor.Plugins.LocalNotifications.schedule({
+                            notifications: [{
+                                title: title,
+                                body: body,
+                                id: Math.floor(Math.random() * 100000)
+                            }]
+                        });
+                    }
+                    // Browser notification fallback
+                    else if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
+                        new Notification(title, {
+                            body: body,
+                            icon: "/images/BananadoroLogo.png"
+                        });
+                    }
+                } else {
+                    document.addEventListener('visibilitychange', () => {
+                        isAppVisible = !document.hidden;
+                    });
                 }
-            };
+
+            lastTime = data.time;
+            }
 
             ws.onclose = () => {
-                status.textContent = 'Disconnected';
-            };
+                document.getElementById("status").textContent = "Disconnected - reconnecting...";
+                setTimeout(() => {
+                    if (username) {
+                        connectWebSocket();
+                    }
+                }, 2000);
+            }
+        }
+
+        document.getElementById("joinBtn").onclick = () => {
+            username = document.getElementById("username").value.trim();
+            if (!username) return;
+
+            if (typeof Notification !== 'undefined' && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+
+            // Request native notification permission
+            if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.LocalNotifications) {
+                Capacitor.Plugins.LocalNotifications.requestPermissions();
+            }
+
+            // Hide login, show app
+            document.getElementById("login").style.display = "none";
+            document.getElementById("app").style.display = "block";
+
+            connectWebSocket();
         };
 
+
+
+        // Events
         document.getElementById('start').onclick = () => {
             if (typeof Notification !== 'undefined') {
                 Notification.requestPermission();

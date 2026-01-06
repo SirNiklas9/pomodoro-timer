@@ -10,3 +10,7 @@ yarn-error.log*
 
 .vscode/*
 .idea
+
+*.jks
+*.dm
+output-metadata.json
