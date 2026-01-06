@@ -4,9 +4,11 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "dev": "bun run src/index.ts"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.9.6",
     "@types/bun": "^1.3.5",
     "typescript": "^5.5.3"
   },

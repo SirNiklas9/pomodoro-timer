@@ -1,0 +1,14 @@
+FROM oven/bun:latest
+LABEL authors="Nicholas"
+
+WORKDIR /app
+
+COPY package.json bun.lock ./
+RUN bun install
+
+COPY src ./src
+COPY public ./public
+
+EXPOSE 3000
+
+CMD ["bun", "run", "src/index.ts"]
