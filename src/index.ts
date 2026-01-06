@@ -14,6 +14,7 @@ let timeLeft = workTime // 25 minutes in seconds
 
 const server = Bun.serve({
     port: 3000,
+    hostname: "0.0.0.0",
     fetch(req, server) {
         const url = new URL(req.url)
 
