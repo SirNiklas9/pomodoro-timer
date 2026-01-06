@@ -8,16 +8,25 @@
 <body>
     <h1>Pomodoro Timer</h1>
     <div id="status">Connecting</div>
-    <button id="timerMode">Switch Mode</button>
-    <div id="timer">25:00</div>
 
-    <button id="start">Start</button>
-    <button id="stop">Stop</button>
-    <button id="reset">Reset</button>
+    <div id="login">
+        <h1>Pomodoro Timer</h1>
+        <input type="text" id="username" placeholder="Enter username">
+        <button id="joinBtn">Login</button>
+    </div>
+
+    <div id="app" style="display: none;">
+        <button id="timerMode">Switch Mode</button>
+        <div id="timer">25:00</div>
+
+        <button id="start">Start</button>
+        <button id="stop">Stop</button>
+        <button id="reset">Reset</button>
+
+    </div>
 
     <script>
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}`);
         const status = document.getElementById('status');
         const sounds = {
             start: new Audio("/sounds/start.mp3"),
@@ -27,40 +36,58 @@
             complexComplete: new Audio("/sounds/complex-ding.mp3"),
             }
 
+        let ws;
+        let username;
         let mode = 'work';
 
-        if (Notification.permission == "default") {
-            Notification.requestPermission();
-        }
+        document.getElementById("joinBtn").onclick = () => {
+            username = document.getElementById("username").value.trim();
+            if (!username) return;
 
-        ws.onopen = () => {
-            status.textContent = 'Connected';
-        };
-
-        ws.onmessage = (event) => {
-            console.log("Got message: ", event.data);
-            const data = JSON.parse(event.data);
-            console.log("Parsed: ", data);
-            if (data.type == "tick") {
-                const minutes = Math.floor(data.time / 60);
-                const seconds = data.time % 60;
-                const timer = document.getElementById('timer');
-                timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            if (Notification.permission == "default") {
+                Notification.requestPermission();
             }
 
-            if (data.time == 0) {
-                sounds.complexComplete.play();
-                if (Notification.permission == "granted") {
-                    new Notification("Pomodoro Complete!", {
-                        body: "Time for a break!",
-                        icon: "/icon.png"
-                    });
+            // Hide login, show app
+            document.getElementById("login").style.display = "none";
+            document.getElementById("app").style.display = "block";
+
+            // Connect and join
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "join", username: username }));
+                document.getElementById("status").textContent = "Connected as " + username;
+            };
+
+            ws.onmessage = (event) => {
+                console.log("Got message: ", event.data);
+                const data = JSON.parse(event.data);
+                console.log("Parsed: ", data);
+                if (data.type == "tick") {
+                    const minutes = Math.floor(data.time / 60);
+                    const seconds = data.time % 60;
+                    const timer = document.getElementById('timer');
+                    timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                    document.getElementById('timerMode').textContent =
+                        data.mode === "work" ? "Work" : "Break";
                 }
-            }
-        };
 
-        ws.onclose = () => {
-            status.textContent = 'Disconnected';
+                if (data.time == 0) {
+                    sounds.complexComplete.play();
+                    if (Notification.permission == "granted") {
+                        new Notification("Pomodoro Complete!", {
+                            body: "Time for a break!",
+                            icon: "/icon.png"
+                        });
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                status.textContent = 'Disconnected';
+            };
         };
 
         document.getElementById('start').onclick = () => {
@@ -82,12 +109,12 @@
         document.getElementById('timerMode').onclick = () => {
             if (mode == "work") {
                 mode = "break";
-                document.getElementById('timerMode').textContent = "MODE: BREAK"
+                document.getElementById('timerMode').textContent = "Break"
                 ws.send(JSON.stringify({type: "mode", mode: 'break'}))
             }
             else if (mode == "break") {
                 mode = "work";
-                document.getElementById('timerMode').textContent = "MODE: WORK"
+                document.getElementById('timerMode').textContent = "Work"
                 ws.send(JSON.stringify({type: "mode", mode: 'work'}))
             }
         };

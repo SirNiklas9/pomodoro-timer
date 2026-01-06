@@ -5,12 +5,18 @@ import { ServerWebSocket } from "bun";
 
 const clients = new Set<ServerWebSocket>();
 
-let isRunning = false;
+interface Room {
+    timeLeft: number;
+    isRunning: boolean;
+    mode: "work" | "break";
+    clients: Set<ServerWebSocket<unknown>>;
+}
 
-let mode: "work" | "break" = "work";
 let workTime = 25 * 60;
 let breakTime = 5 * 60;
-let timeLeft = workTime // 25 minutes in seconds
+
+const rooms = new Map<string, Room>();
+const socketToRoom = new Map<ServerWebSocket<unknown>, string>();
 
 const server = Bun.serve({
     port: 3000,
@@ -43,48 +49,80 @@ const server = Bun.serve({
             clients.add(ws);
             console.log("Client Connected");
         },
+
         message(ws, message) {
-            console.log("Message Received", message.toString());
             const data = JSON.parse(message.toString());
-            console.log("data.type is:", data.type);
-            console.log("Checking mode:", data.type === "mode");
+
+            if (data.type === "join") {
+                const room = getOrCreateRoom(data.username);
+                room.clients.add(ws);
+                socketToRoom.set(ws, data.username);
+                // Send current state to the new client
+                ws.send(JSON.stringify({ type: "tick", time: room.timeLeft, mode: room.mode }));
+                return;
+            }
+
+            // Get this socket's room
+            const roomName = socketToRoom.get(ws);
+            if (!roomName) return;
+            const room = rooms.get(roomName)!;
+
             if (data.type === "start") {
-                isRunning = true;
+                room.isRunning = true;
             } else if (data.type === "stop") {
-                isRunning = false;
+                room.isRunning = false;
             } else if (data.type == "reset") {
-                timeLeft = mode == "work" ? workTime : breakTime;
-                isRunning = false;
-                broadcast(JSON.stringify({type: "tick", time: timeLeft}));
+                room.timeLeft = room.mode == "work" ? workTime : breakTime;
+                room.isRunning = false;
+                broadcastToRoom(room);
             } else if (data.type == "mode") {
-                mode = data.mode;
-                timeLeft = mode == "work" ? workTime : breakTime;
-                isRunning = false;
-                console.log("Broadcast");
-                broadcast(JSON.stringify({ type: "tick", time: timeLeft, mode: mode}));
+                room.mode = data.mode;
+                room.timeLeft = room.mode == "work" ? workTime : breakTime;
+                room.isRunning = false;
+                broadcastToRoom(room);
             }
         },
+
         close(ws) {
-            clients.delete(ws);
-            console.log("Client Disconnected");
+            const roomName = socketToRoom.get(ws);
+            if (roomName) {
+                const room = rooms.get(roomName);
+                if (room) {
+                    room.clients.delete(ws);
+                }
+                socketToRoom.delete(ws);
+            }
         },
     },
 });
 
 // Broadcast to all connected clients
-function broadcast(message: string) {
+function broadcastToRoom(room: Room) {
     // Keep track of clients
-    for (const client of clients) {
-        client.send(message);
+    for (const client of room.clients) {
+        client.send(JSON.stringify({ type: "tick", time: room.timeLeft, mode: room.mode }));
     }
+}
+
+function getOrCreateRoom(username: string): Room {
+    if (!rooms.has(username)) {
+        rooms.set(username, {
+            timeLeft: 25 * 60,
+            isRunning: false,
+            mode: "work",
+            clients: new Set(),
+        });
+    }
+    return rooms.get(username)!;
 }
 
 // Timer Tick
 setInterval(() => {
-    console.log("Tick - isRunning:", isRunning, "timeLeft:", timeLeft);
-    if (isRunning && timeLeft > 0) {
-        timeLeft--;
-        broadcast(JSON.stringify({type: "tick", time: timeLeft, mode: mode}));
+    for (const room of rooms.values()) {
+        if (room.isRunning && room.timeLeft > 0) {
+            room.timeLeft--;
+            broadcastToRoom(room);
+        }
     }
 }, 1000);
 
