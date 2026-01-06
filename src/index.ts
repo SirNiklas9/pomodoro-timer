@@ -13,7 +13,7 @@ interface Room {
 }
 
 let workTime = 25 * 60;
-let breakTime = 3;
+let breakTime = 5 * 60;
 
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<ServerWebSocket<unknown>, string>();
