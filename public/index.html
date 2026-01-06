@@ -3,25 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="style.css">
-    <title>Pomodoro Timer</title>
+    <link rel="icon" href="/images/BananadoroLogo.png" type="image/png">
+    <title>Bananadoro Timer</title>
 </head>
 <body>
-    <h1>Pomodoro Timer</h1>
-    <div id="status">Connecting</div>
+    <img src="/images/BananadoroLogo.png" alt="BananadoroLogo" style="width: 150px; margin-bottom: 1rem;">
+    <h1>Bananadoro Timer</h1>
+    <div id="status">Waiting</div>
 
     <div id="login">
-        <h1>Pomodoro Timer</h1>
         <input type="text" id="username" placeholder="Enter username">
         <button id="joinBtn">Login</button>
     </div>
 
-    <div id="app" style="display: none;">
+    <div id="app">
         <button id="timerMode">Switch Mode</button>
         <div id="timer">25:00</div>
 
-        <button id="start">Start</button>
-        <button id="stop">Stop</button>
-        <button id="reset">Reset</button>
+        <div class="button-row">
+            <button id="start">Start</button>
+            <button id="stop">Stop</button>
+            <button id="reset">Reset</button>
+        </div>
 
     </div>
 
@@ -58,18 +61,17 @@
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({ type: "join", username: username }));
-                document.getElementById("status").textContent = "Connected as " + username;
+                document.getElementById("status").textContent = "Connected to room " + username;
             };
 
             ws.onmessage = (event) => {
-                console.log("Got message: ", event.data);
                 const data = JSON.parse(event.data);
-                console.log("Parsed: ", data);
                 if (data.type == "tick") {
                     const minutes = Math.floor(data.time / 60);
                     const seconds = data.time % 60;
                     const timer = document.getElementById('timer');
                     timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                    document.title = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} - Bananadoro`;
                     document.getElementById('timerMode').textContent =
                         data.mode === "work" ? "Work" : "Break";
                 }
@@ -77,9 +79,9 @@
                 if (data.time == 0) {
                     sounds.complexComplete.play();
                     if (Notification.permission == "granted") {
-                        new Notification("Pomodoro Complete!", {
+                        new Notification("Bananadoro Complete!", {
                             body: "Time for a break!",
-                            icon: "/icon.png"
+                            icon: "/images/BananadoroLogo.png"
                         });
                     }
                 }

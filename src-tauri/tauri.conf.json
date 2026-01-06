@@ -1,10 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "pomodoro-timer",
-  "version": "0.1.0",
-  "identifier": "cloud.bananalabs.pomodoro",
+  "productName": "Banandoro Timer",
+  "version": "1.0.0",
+  "identifier": "cloud.bananalabs.banandoro",
   "build": {
     "frontendDist": "../public",
+    "frontendDist": "https://bananadoro.bananalabs.cloud",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "bun dev",
     "beforeBuildCommand": ""
@@ -12,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "Pomodoro Timer",
+        "title": "Banandoro Timer",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -26,12 +27,17 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/favicon.ico"
+      }
+    },
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/favicon.ico",
+      "icons/favicon-32x32.png",
+      "icons/BananadoroLogo.png",
+      "icons/android-chrome-192x192.png",
+      "icons/android-chrome-512x512.png"
     ]
   }
 }

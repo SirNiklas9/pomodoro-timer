@@ -13,7 +13,7 @@ interface Room {
 }
 
 let workTime = 25 * 60;
-let breakTime = 5 * 60;
+let breakTime = 3;
 
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<ServerWebSocket<unknown>, string>();
@@ -28,9 +28,17 @@ const server = Bun.serve({
             return;
         }
 
+
+
         if (url.pathname == "/style.css") {
             return new Response(file("./public/style.css"), {
                 headers: { "Content-Type": "text/css" },
+            });
+        }
+
+        if (url.pathname.startsWith("/images/")) {
+            return new Response(file("./public" + url.pathname), {
+                headers: { "Content-Type": "image/png" },
             });
         }
 
