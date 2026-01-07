@@ -2,10 +2,12 @@
 
 import { file } from "bun";
 import { ServerWebSocket } from "bun";
+import * as crypto from "node:crypto";
 
 const clients = new Set<ServerWebSocket>();
 
-interface Room {
+interface Session {
+    sessionCode: string;
     timeLeft: number;
     isRunning: boolean;
     mode: "work" | "break";
@@ -15,8 +17,8 @@ interface Room {
 let workTime = 25 * 60;
 let breakTime = 5 * 60;
 
-const rooms = new Map<string, Room>();
-const socketToRoom = new Map<ServerWebSocket<unknown>, string>();
+const sessions = new Map<string, Session>();
+const socketToSession = new Map<ServerWebSocket<unknown>, string>();
 
 const server = Bun.serve({
     port: 3000,
@@ -27,8 +29,6 @@ const server = Bun.serve({
         if (server.upgrade(req)) {
             return;
         }
-
-
 
         if (url.pathname == "/style.css") {
             return new Response(file("./public/style.css"), {
@@ -55,89 +55,123 @@ const server = Bun.serve({
     websocket: {
         open(ws) {
             clients.add(ws);
-            console.log("Client Connected");
         },
 
         message(ws, message) {
             const data = JSON.parse(message.toString());
 
+            if (data.type === "create") {
+                const session = createSession();
+                session.clients.add(ws)
+                socketToSession.set(ws, session.sessionCode);
+
+                // send sessionCode back to client
+                ws.send(JSON.stringify({ type: "created", sessionCode: session.sessionCode }));
+            }
+
             if (data.type === "join") {
-                const room = getOrCreateRoom(data.username);
-                room.clients.add(ws);
-                socketToRoom.set(ws, data.username);
-                // Send current state to the new client
-                ws.send(JSON.stringify({ type: "tick", time: room.timeLeft, mode: room.mode }));
+                const session = getSession(data.sessionCode);
+                if (session) {
+                    session.clients.add(ws);
+                    socketToSession.set(ws, data.sessionCode);
+
+                    // Send current state to the new client
+                    broadcastToSession(session)
+                } else {
+                    ws.send(JSON.stringify({ type: "error", message: "Session not found" }));
+                }
                 return;
             }
 
-            // Get this socket's room
-            const roomName = socketToRoom.get(ws);
-            if (!roomName) return;
-            const room = rooms.get(roomName)!;
+            // Get this socket's session
+            const sessionName = socketToSession.get(ws);
+            if (!sessionName) return;
+            const session = sessions.get(sessionName)!;
 
             if (data.type === "start") {
-                room.isRunning = true;
+                session.isRunning = true;
             } else if (data.type === "stop") {
-                room.isRunning = false;
+                session.isRunning = false;
             } else if (data.type == "reset") {
-                room.timeLeft = room.mode == "work" ? workTime : breakTime;
-                room.isRunning = false;
-                broadcastToRoom(room);
-            } else if (data.type == "mode") {
-                room.mode = data.mode;
-                room.timeLeft = room.mode == "work" ? workTime : breakTime;
-                room.isRunning = false;
-                broadcastToRoom(room);
+                session.timeLeft = session.mode == "work" ? workTime : breakTime;
+                session.isRunning = false;
+                broadcastToSession(session);
+            } else if (data.type === "toggleMode") {
+                session.mode = session.mode === "work" ? "break" : "work";  // toggle on server
+                session.timeLeft = session.mode == "work" ? workTime : breakTime;
+                session.isRunning = false;
+                broadcastToSession(session);
             }
         },
 
         close(ws) {
-            const roomName = socketToRoom.get(ws);
-            if (roomName) {
-                const room = rooms.get(roomName);
-                if (room) {
-                    room.clients.delete(ws);
-                    if (room.clients.size === 0) {
+            const sessionName = socketToSession.get(ws);
+            if (sessionName) {
+                const session = sessions.get(sessionName);
+                if (session) {
+                    session.clients.delete(ws);
+                    broadcastToSession(session);
+                    if (session.clients.size === 0) {
                         // Delete after 5 minutes if still empty
                         setTimeout(() => {
-                            if (room.clients.size === 0) {
-                                rooms.delete(roomName);
+                            if (session.clients.size === 0) {
+                                sessions.delete(sessionName);
                             }
                         }, 5 * 60 * 1000);
                     }
                 }
-                socketToRoom.delete(ws);
+                socketToSession.delete(ws);
             }
         },
     },
 });
 
 // Broadcast to all connected clients
-function broadcastToRoom(room: Room) {
+function broadcastToSession(session: Session) {
     // Keep track of clients
-    for (const client of room.clients) {
-        client.send(JSON.stringify({ type: "tick", time: room.timeLeft, mode: room.mode }));
+    for (const client of session.clients) {
+        client.send(JSON.stringify({ type: "tick", time: session.timeLeft, mode: session.mode, userCount: session.clients.size}));
     }
 }
 
-function getOrCreateRoom(username: string): Room {
-    if (!rooms.has(username)) {
-        rooms.set(username, {
-            timeLeft: 25 * 60,
-            isRunning: false,
-            mode: "work",
-            clients: new Set(),
-        });
+function generateCode(length = 6): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L confusion
+    let code = "";
+    for (let i = 0; i < length; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
     }
-    return rooms.get(username)!;
+    return code;
+}
+
+function createSession(): Session {
+    let sessionCode = generateCode();
+
+    // regenerate if collision (rare but possible)
+    while (sessions.has(sessionCode)) {
+        sessionCode = generateCode();
+    }
+
+    const session: Session = {
+        sessionCode,
+        timeLeft: 25 * 60,
+        isRunning: false,
+        mode: "work",
+        clients: new Set()
+    };
+    sessions.set(sessionCode, session);
+    return session;
+}
+
+function getSession(sessionCode: string): Session | undefined {
+    return sessions.get(sessionCode);
 }
 
 // Timer Tick
 setInterval(() => {
-    for (const room of rooms.values()) {
-        if (room.isRunning && room.timeLeft > 0) {
-            room.timeLeft--;
-            broadcastToRoom(room);
+    for (const session of sessions.values()) {
+        if (session.isRunning && session.timeLeft > 0) {
+            session.timeLeft--;
+            broadcastToSession(session);
         }
     }
 }, 1000);
