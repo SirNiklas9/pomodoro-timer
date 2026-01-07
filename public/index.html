@@ -30,13 +30,43 @@
         </div>
         <hr>
         <br>
-        <button id="timerMode">Work</button>
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+            <button id="timerMode">Work</button>
+            <button id="settingsBtn" style="background: none; border: none; cursor: pointer; padding: 0.5rem;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#f4d03f">
+                    <path d="M21.32 9.55l-1.89-.63a7.44 7.44 0 0 0-.65-1.57l.89-1.78a1 1 0 0 0-.17-1.15l-1.42-1.41a1 1 0 0 0-1.15-.17l-1.78.89a7.44 7.44 0 0 0-1.57-.65l-.63-1.89A1 1 0 0 0 13 .5h-2a1 1 0 0 0-.95.68l-.63 1.89a7.44 7.44 0 0 0-1.57.65l-1.78-.89a1 1 0 0 0-1.15.17L3.51 4.41a1 1 0 0 0-.17 1.15l.89 1.78a7.44 7.44 0 0 0-.65 1.57l-1.89.63A1 1 0 0 0 1 10.5v2a1 1 0 0 0 .68.95l1.89.63a7.44 7.44 0 0 0 .65 1.57l-.89 1.78a1 1 0 0 0 .17 1.15l1.41 1.41a1 1 0 0 0 1.15.17l1.78-.89a7.44 7.44 0 0 0 1.57.65l.63 1.89a1 1 0 0 0 .95.69h2a1 1 0 0 0 .95-.68l.63-1.89a7.44 7.44 0 0 0 1.57-.65l1.78.89a1 1 0 0 0 1.15-.17l1.41-1.41a1 1 0 0 0 .17-1.15l-.89-1.78a7.44 7.44 0 0 0 .65-1.57l1.89-.63a1 1 0 0 0 .69-.95v-2a1 1 0 0 0-.68-.95z"/>
+                    <circle cx="12" cy="11.5" r="3" fill="#1a1a1a"/>
+                </svg>
+            </button>
+        </div>
         <div id="timer">25:00</div>
 
         <div class="button-row">
             <button id="start">Start</button>
             <button id="stop">Stop</button>
             <button id="reset">Reset</button>
+        </div>
+
+        <div id="settings-overlay">
+            <div id="settings-panel">
+                <h3>Settings</h3>
+
+                <label>Work Duration (minutes)</label>
+                <input type="number" id="workDuration" value="25" min="0.1" max="120" step="0.1">
+
+                <label>Break Duration (minutes)</label>
+                <input type="number" id="breakDuration" value="5" min="0.1" max="60" step="0.1">
+
+                <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="soundEnabled" checked> Sound
+                </label>
+                <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="notificationsEnabled" checked> Notifications
+                </label>
+
+                <button id="saveSettings">Save</button>
+                <button id="closeSettings">Cancel</button>
+            </div>
         </div>
 
     </div>
@@ -59,6 +89,11 @@
 
         let isAppVisible = true;
         let lastTime = null;
+
+        const savedWork = localStorage.getItem("workDuration");
+        const savedBreak = localStorage.getItem("breakDuration");
+        if (savedWork) document.getElementById("workDuration").value = savedWork;
+        if (savedBreak) document.getElementById("breakDuration").value = savedBreak;
 
         if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.App) {
             Capacitor.Plugins.App.addListener('appStateChange', (state) => {
@@ -98,6 +133,16 @@
                     sessionCode = data.sessionCode;
                     localStorage.setItem("sessionCode", sessionCode);
                     updateStatusBar(sessionCode, 1)
+
+                    // Send your saved durations to initialize the session
+                    const workDuration = parseFloat(localStorage.getItem("workDuration")) || 25;
+                    const breakDuration = parseFloat(localStorage.getItem("breakDuration")) || 5;
+
+                    ws.send(JSON.stringify({
+                        type: "settings",
+                        workDuration: workDuration,
+                        breakDuration: breakDuration
+                    }));
                 }
 
                 if (data.type == "tick") {
@@ -120,39 +165,44 @@
                 }
 
                 if (data.time == 0 && lastTime !== null && lastTime > 0) {
-                    let title = mode === "work" ? "Work Session Complete!" : "Break Session Complete!";
-                    let body = mode === "work" ? "Time for a break!" : "Time to work!";
+                    const soundEnabled = localStorage.getItem("soundEnabled") !== "false";
+                    const notificationsEnabled = localStorage.getItem("notificationsEnabled") !== "false";
+
+                    let title = data.mode === "work" ? "Work Session Complete!" : "Break Session Complete!";
+                    let body = data.mode === "work" ? "Time for a break!" : "Time to work!";
 
                     // Play sound only if visible
-                    if (isAppVisible) {
+                    if (soundEnabled) {
                         sounds.complexComplete.play();
                     }
 
-                    // Tauri (Windows/Mac/Linux desktop)
-                    if (window.__TAURI__?.notification) {
-                        window.__TAURI__.notification.sendNotification({
-                            title: title,
-                            body: body,
-                            icon: '/images/BananadoroLogo.png'
-                        });
-                    }
-
-                    // Native notification (Capacitor)
-                    if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.LocalNotifications) {
-                        Capacitor.Plugins.LocalNotifications.schedule({
-                            notifications: [{
+                    if (notificationsEnabled) {
+                        // Tauri (Windows/Mac/Linux desktop)
+                        if (window.__TAURI__?.notification) {
+                            window.__TAURI__.notification.sendNotification({
                                 title: title,
                                 body: body,
-                                id: Math.floor(Math.random() * 100000)
-                            }]
-                        });
-                    }
-                    // Browser notification fallback
-                    else if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
-                        new Notification(title, {
-                            body: body,
-                            icon: "/images/BananadoroLogo.png"
-                        });
+                                icon: '/images/BananadoroLogo.png'
+                            });
+                        }
+
+                        // Native notification (Capacitor)
+                        if (typeof Capacitor !== 'undefined' && Capacitor.Plugins?.LocalNotifications) {
+                            Capacitor.Plugins.LocalNotifications.schedule({
+                                notifications: [{
+                                    title: title,
+                                    body: body,
+                                    id: Math.floor(Math.random() * 100000)
+                                }]
+                            });
+                        }
+                        // Browser notification fallback
+                        else if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
+                            new Notification(title, {
+                                body: body,
+                                icon: "/images/BananadoroLogo.png"
+                            });
+                        }
                     }
                 } else {
                     document.addEventListener('visibilitychange', () => {
@@ -252,6 +302,39 @@
             mode = mode === "work" ? "break" : "work";
             ws.send(JSON.stringify({type: "toggleMode"}));
         };
+
+        document.getElementById("settingsBtn").addEventListener("click", () => {
+            document.getElementById("settings-overlay").classList.add("active");
+        });
+
+        document.getElementById("closeSettings").addEventListener("click", () => {
+            document.getElementById("settings-overlay").classList.remove("active");
+        });
+
+
+
+        document.getElementById("saveSettings").addEventListener("click", () => {
+            const workDuration = parseFloat(document.getElementById("workDuration").value);
+            const breakDuration = parseFloat(document.getElementById("breakDuration").value);
+            const soundEnabled = document.getElementById("soundEnabled").checked;
+            const notificationsEnabled = document.getElementById("notificationsEnabled").checked;
+
+            // Save to localStorage
+            localStorage.setItem("workDuration", workDuration);
+            localStorage.setItem("breakDuration", breakDuration);
+            localStorage.setItem("soundEnabled", soundEnabled);
+            localStorage.setItem("notificationsEnabled", notificationsEnabled);
+
+            // Send to server
+            ws.send(JSON.stringify({
+                type: "settings",
+                workDuration: workDuration,
+                breakDuration: breakDuration
+            }));
+
+            // Close overlay
+            document.getElementById("settings-overlay").classList.remove("active");
+        });
     </script>
 </body>
 </html>

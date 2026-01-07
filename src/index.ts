@@ -11,6 +11,8 @@ interface Session {
     timeLeft: number;
     isRunning: boolean;
     mode: "work" | "break";
+    workTime: number;
+    breakTime: number;
     clients: Set<ServerWebSocket<unknown>>;
 }
 
@@ -62,11 +64,25 @@ const server = Bun.serve({
 
             if (data.type === "create") {
                 const session = createSession();
-                session.clients.add(ws)
+                session.clients.add(ws);
                 socketToSession.set(ws, session.sessionCode);
-
-                // send sessionCode back to client
                 ws.send(JSON.stringify({ type: "created", sessionCode: session.sessionCode }));
+                broadcastToSession(session);
+            }
+
+            if (data.type === "settings") {
+                const sessionCode = socketToSession.get(ws);
+                const session = sessionCode ? sessions.get(sessionCode) : undefined;
+                if (session) {
+                    session.workTime = data.workDuration * 60;
+                    session.breakTime = data.breakDuration * 60;
+
+                    if (!session.isRunning) {
+                        session.timeLeft = session.mode === "work" ? session.workTime : session.breakTime;
+                    }
+
+                    broadcastToSession(session);
+                }
             }
 
             if (data.type === "join") {
@@ -93,12 +109,12 @@ const server = Bun.serve({
             } else if (data.type === "stop") {
                 session.isRunning = false;
             } else if (data.type == "reset") {
-                session.timeLeft = session.mode == "work" ? workTime : breakTime;
+                session.timeLeft = session.mode === "work" ? session.workTime : session.breakTime;
                 session.isRunning = false;
                 broadcastToSession(session);
             } else if (data.type === "toggleMode") {
                 session.mode = session.mode === "work" ? "break" : "work";  // toggle on server
-                session.timeLeft = session.mode == "work" ? workTime : breakTime;
+                session.timeLeft = session.mode === "work" ? session.workTime : session.breakTime;
                 session.isRunning = false;
                 broadcastToSession(session);
             }
@@ -128,9 +144,14 @@ const server = Bun.serve({
 
 // Broadcast to all connected clients
 function broadcastToSession(session: Session) {
-    // Keep track of clients
+    const message = JSON.stringify({
+        type: "tick",
+        time: session.timeLeft,
+        mode: session.mode,
+        userCount: session.clients.size
+    });
     for (const client of session.clients) {
-        client.send(JSON.stringify({ type: "tick", time: session.timeLeft, mode: session.mode, userCount: session.clients.size}));
+        client.send(message);
     }
 }
 
@@ -145,8 +166,6 @@ function generateCode(length = 6): string {
 
 function createSession(): Session {
     let sessionCode = generateCode();
-
-    // regenerate if collision (rare but possible)
     while (sessions.has(sessionCode)) {
         sessionCode = generateCode();
     }
@@ -156,7 +175,9 @@ function createSession(): Session {
         timeLeft: 25 * 60,
         isRunning: false,
         mode: "work",
-        clients: new Set()
+        workTime: 25 * 60,
+        breakTime: 5 * 60,
+        clients: new Set(),
     };
     sessions.set(sessionCode, session);
     return session;
@@ -171,6 +192,11 @@ setInterval(() => {
     for (const session of sessions.values()) {
         if (session.isRunning && session.timeLeft > 0) {
             session.timeLeft--;
+            broadcastToSession(session);
+        }
+        if (session.timeLeft <= 0) {
+            session.mode = session.mode === "work" ? "break" : "work";
+            session.timeLeft = session.mode === "work" ? session.workTime : session.breakTime;
             broadcastToSession(session);
         }
     }
