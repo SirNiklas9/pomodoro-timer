@@ -15,7 +15,7 @@ WebSocket-based Pomodoro timer backend built with Bun and TypeScript. Designed t
 - Runtime: Bun
 - Language: TypeScript
 - Protocol: WebSocket
-- 
+
 ## Features
 - 25min work / 5min break modes
 - Sound effects and notifications
