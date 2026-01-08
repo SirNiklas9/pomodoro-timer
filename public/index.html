@@ -100,8 +100,16 @@
                 isAppVisible = state.isActive;
 
                 // Reconnect if coming back and disconnected
-                if (state.isActive && ws && ws.readyState !== WebSocket.OPEN) {
-                    connectWebSocket();
+                if (state.isActive && sessionCode) {
+                    // Check if we need to reconnect
+                    if (!ws || ws.readyState !== WebSocket.OPEN) {
+                        // Don't call connectWebSocket directly - it might race
+                        // Let the existing onclose handler deal with it, or:
+                        if (!ws || ws.readyState === WebSocket.CLOSED) {
+                            connectWebSocket();
+                        }
+                        // If CONNECTING, just wait - it's already trying
+                    }
                 }
             });
         } else {
@@ -146,15 +154,22 @@
                 }
 
                 if (data.type == "tick") {
-                    const minutes = Math.floor(data.time / 60);
-                    const seconds = data.time % 60;
+                    // Check elements exist before updating
                     const timer = document.getElementById('timer');
-                    timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                    document.title = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} - Bananadoro`;
-                    document.getElementById('timerMode').textContent =
-                        data.mode === "work" ? "Work" : "Break";
-                    updateStatusBar(sessionCode, data.userCount)
-                }
+                    const timerMode = document.getElementById('timerMode');
+                    const sessionInfo = document.getElementById("sessionInfo");
+
+                    // Only update if the app view is visible (elements exist)
+                    if (!timer || !sessionInfo) return;
+
+                        const minutes = Math.floor(data.time / 60);
+                        const seconds = data.time % 60;
+                        timer.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                        document.title = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} - Bananadoro`;
+                        timerMode.textContent =
+                            data.mode === "work" ? "Work" : "Break";
+                        updateStatusBar(sessionCode, data.userCount)
+                    }
 
                 if (data.type == 'error') {
                     alert(data.message);
@@ -210,12 +225,13 @@
                     });
                 }
 
-            lastTime = data.time;
+                lastTime = data.time;
             }
 
             ws.onclose = () => {
-                document.getElementById("status-bar").textContent = "Disconnected - reconnecting...";
+                document.getElementById("sessionInfo").textContent = "Disconnected - reconnecting...";
                 setTimeout(() => {
+                    console.log("Attempting reconnect, sessionCode:", sessionCode);
                     if (sessionCode) {
                         connectWebSocket();
                     }

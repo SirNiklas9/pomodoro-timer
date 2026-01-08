@@ -133,7 +133,7 @@ const server = Bun.serve({
                             if (session.clients.size === 0) {
                                 sessions.delete(sessionName);
                             }
-                        }, 5 * 60 * 1000);
+                        }, 24 * 60 * 60 * 1000);
                     }
                 }
                 socketToSession.delete(ws);
@@ -190,15 +190,15 @@ function getSession(sessionCode: string): Session | undefined {
 // Timer Tick
 setInterval(() => {
     for (const session of sessions.values()) {
-        if (session.isRunning && session.timeLeft > 0) {
+        if (!session.isRunning) continue;
+
+        if (session.timeLeft > 0) {
             session.timeLeft--;
-            broadcastToSession(session);
-        }
-        if (session.timeLeft <= 0) {
+        } else if (session.clients.size > 0) {
             session.mode = session.mode === "work" ? "break" : "work";
             session.timeLeft = session.mode === "work" ? session.workTime : session.breakTime;
-            broadcastToSession(session);
         }
+        broadcastToSession(session);
     }
 }, 1000);
 
