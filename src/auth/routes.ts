@@ -81,6 +81,52 @@ auth.post('/register', async (c) => {
     return c.json({ success: true })
 })
 
+auth.post('/set-password', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName);
+    if (!sessionId) return c.json({ error: 'Not logged in' }, 401);
+
+    const { session, user } = await lucia.validateSession(sessionId);
+    if (!session) return c.json({ error: 'Not logged in' }, 401);
+
+    const { password } = await c.req.json();
+
+    if (!password || password.length < 8) {
+        return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    // Check if they already have a native account
+    const [existing] = await db
+        .select()
+        .from(nativeAccounts)
+        .where(eq(nativeAccounts.userId, user.id));
+
+    if (existing) {
+        return c.json({ error: 'Password already set' }, 400);
+    }
+
+    // Get their email from users table
+    const [userData] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, user.id));
+
+    if (!userData?.email) {
+        return c.json({ error: 'No email on account' }, 400);
+    }
+
+    const hashedPassword = await Bun.password.hash(password);
+
+    await db.insert(nativeAccounts).values({
+        id: generateId(15),
+        userId: user.id,
+        email: userData.email,
+        passwordHash: hashedPassword,
+        createdAt: new Date(),
+    });
+
+    return c.json({ success: true });
+});
+
 auth.post('/login', async (c) => {
     const { email, password } = await c.req.json()
 
@@ -161,6 +207,13 @@ auth.get('/discord/callback', async (c) => {
     if (existingOAuth) {
         // Existing user, just log them in
         userId = existingOAuth.userId
+
+        // Create session
+        const session = await lucia.createSession(userId, {})
+        const cookie = lucia.createSessionCookie(session.id)
+        setCookie(c, cookie.name, cookie.value, cookie.attributes)
+
+        return c.redirect('/?auth=success')
     } else {
         // New user, create account
         userId = generateId(15)
@@ -181,14 +234,15 @@ auth.get('/discord/callback', async (c) => {
             providerUsername: discordUser.username,
             createdAt: now,
         })
+
+        // Create session
+        const session = await lucia.createSession(userId, {})
+        const cookie = lucia.createSessionCookie(session.id)
+        setCookie(c, cookie.name, cookie.value, cookie.attributes)
+
+        // NEW USER - prompt for password
+        return c.redirect('/?auth=new&email=' + encodeURIComponent(discordUser.email))
     }
-
-    // Create session
-    const session = await lucia.createSession(userId, {})
-    const cookie = lucia.createSessionCookie(session.id)
-    setCookie(c, cookie.name, cookie.value, cookie.attributes)
-
-    return c.redirect('/')
 })
 
 auth.delete('/account', async (c) => {

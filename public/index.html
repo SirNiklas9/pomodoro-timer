@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="style.css?v=1.3.0">
+    <link rel="stylesheet" href="style.css?v=2.0.0">
     <link rel="icon" href="/images/BananadoroLogo.png" type="image/png">
     <title>Bananadoro Timer</title>
 </head>
@@ -128,6 +128,19 @@
             </div>
 
             <button id="closeAuth" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="setpassword-overlay">
+        <div id="setpassword-panel">
+            <h3>Set a Password</h3>
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">This lets you login on mobile devices</p>
+
+            <input type="email" id="setPasswordEmail" placeholder="Email" disabled style="opacity: 0.6;">
+            <input type="password" id="setPasswordPassword" placeholder="Password">
+            <input type="password" id="setPasswordConfirm" placeholder="Confirm Password">
+
+            <button id="setPasswordSubmit">Set Password</button>
         </div>
     </div>
 
@@ -590,6 +603,58 @@
             window.location.reload();
         };
 
+        // Check for auth callback
+        const params = new URLSearchParams(window.location.search);
+        const authType = params.get('auth');
+
+        if (authType === 'new') {
+            const email = params.get('email');
+            document.getElementById('setPasswordEmail').value = email;
+            document.getElementById('setpassword-overlay').classList.add('active');
+            history.replaceState({}, '', '/');
+        } else if (authType === 'success') {
+            history.replaceState({}, '', '/');
+            checkAuth();
+        }
+
+        document.getElementById('setPasswordSubmit').onclick = async () => {
+            const email = document.getElementById('setPasswordEmail').value;
+            const password = document.getElementById('setPasswordPassword').value;
+            const confirm = document.getElementById('setPasswordConfirm').value;
+
+            if (!password) {
+                alert('Please enter a password');
+                return;
+            }
+            if (password !== confirm) {
+                alert('Passwords do not match');
+                return;
+            }
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters');
+                return;
+            }
+
+            const res = await fetch('/auth/set-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('setpassword-overlay').classList.remove('active');
+                checkAuth();
+            } else {
+                alert(data.error || 'Something went wrong');
+            }
+        };
+
+        document.getElementById('setPasswordSkip').onclick = () => {
+            document.getElementById('setpassword-overlay').classList.remove('active');
+            checkAuth();
+        };
+
         document.getElementById('homeBtn').onclick = () => {
             // Close websocket
             if (ws) ws.close();
@@ -602,6 +667,11 @@
             // Reset title
             document.title = 'Bananadoro Timer';
         };
+
+        // Hide Discord OAuth on mobile - not supported
+        if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+            document.getElementById('authDiscord').style.display = 'none';
+        }
     </script>
 </body>
 </html>
