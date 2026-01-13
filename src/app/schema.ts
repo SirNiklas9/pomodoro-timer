@@ -9,3 +9,9 @@ export const userSettings = sqliteTable('user_settings', {
     notificationsEnabled: integer('notifications_enabled', { mode: 'boolean' }).default(true),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
+
+export const userSessions = sqliteTable('user_sessions', {
+    userId: text('user_id').primaryKey().references(() => users.id),
+    sessionCode: text('session_code').notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})

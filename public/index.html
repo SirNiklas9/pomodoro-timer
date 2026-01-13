@@ -19,6 +19,7 @@
 
     <div id="login">
         <hr>
+        <button id="resumeBtn" style="display: none; margin-bottom: 1rem;"></button>
         <div class="login-options">
             <button id="createBtn">Create Session</button>
             <div class="divider"></div>
@@ -27,11 +28,18 @@
                 <button id="joinBtn">Join</button>
             </div>
         </div>
+        <button id="menuSettingsBtn" style="margin-top: 1rem; font-size: 0.8rem; padding: 0.5rem 1rem; opacity: 0.7;">Settings</button>
     </div>
 
     <div id="app">
         <br>
         <div id="status-bar">
+            <button id="homeBtn" style="background: none; border: none; cursor: pointer; padding: 0.5rem;" title="Back to menu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f4d03f" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+            </button>
             <span id="sessionInfo"></span>
             <span id="userCount"></span>
         </div>
@@ -53,27 +61,44 @@
             <button id="stop">Stop</button>
             <button id="reset">Reset</button>
         </div>
+    </div>
 
-        <div id="settings-overlay">
-            <div id="settings-panel">
-                <h3>Settings</h3>
+    <div id="settings-overlay">
+        <div id="settings-panel">
+            <h3>Settings</h3>
 
-                <label>Work Duration (minutes)</label>
-                <input type="number" id="workDuration" value="25" min="0.1" max="120" step="0.1">
+            <label>Work Duration (minutes)</label>
+            <input type="number" id="workDuration" value="25" min="0.1" max="120" step="0.1">
 
-                <label>Break Duration (minutes)</label>
-                <input type="number" id="breakDuration" value="5" min="0.1" max="60" step="0.1">
+            <label>Break Duration (minutes)</label>
+            <input type="number" id="breakDuration" value="5" min="0.1" max="60" step="0.1">
 
-                <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="soundEnabled" checked> Sound
-                </label>
-                <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="notificationsEnabled" checked> Notifications
-                </label>
+            <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" id="soundEnabled" checked> Sound
+            </label>
+            <label style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" id="notificationsEnabled" checked> Notifications
+            </label>
 
-                <button id="saveSettings">Save</button>
-                <button id="closeSettings">Cancel</button>
-            </div>
+            <button id="saveSettings">Save</button>
+            <button id="closeSettings">Cancel</button>
+
+            <details id="dangerZone" style="display: none;">
+
+                <hr style="border-color: #444; margin: 1rem 0;">
+
+                <summary style="color: #ff6b6b; cursor: pointer; text-align: center; font-size: 0.85rem; text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);">
+                    ⚠️ Danger Zone
+                </summary>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
+                    <button id="deleteDataBtn" style="background: transparent; border-color: #ff6b6b; color: #ff6b6b; font-size: 0.75rem;">
+                        Delete Bananadoro Data
+                    </button>
+                    <button id="deleteAccountBtn" style="background: #ff6b6b; border-color: #ff6b6b; color: #1a1a1a; font-size: 0.75rem;">
+                        Delete Account
+                    </button>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -178,6 +203,13 @@
                     sessionCode = data.sessionCode;
                     localStorage.setItem("sessionCode", sessionCode);
                     updateStatusBar(sessionCode, 1)
+
+                    // Save to account if logged in
+                    fetch('/app/session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionCode: sessionCode })
+                    });
 
                     // Send your saved durations to initialize the session
                     const workDuration = parseFloat(localStorage.getItem("workDuration")) || 25;
@@ -300,6 +332,13 @@
             sessionCode = document.getElementById("sessionCode").value.trim();
             if (!sessionCode) return;
 
+            // Save to account if logged in
+            fetch('/app/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionCode: sessionCode })
+            });
+
             if (typeof Notification !== 'undefined' && Notification.permission === "default") {
                 Notification.requestPermission();
             }
@@ -411,6 +450,29 @@
                     localStorage.setItem('soundEnabled', settings.soundEnabled);
                     localStorage.setItem('notificationsEnabled', settings.notificationsEnabled);
                 }
+
+                // If already in a session, save it to this account
+                if (sessionCode) {
+                    fetch('/app/session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionCode: sessionCode })
+                    });
+                }
+
+                // Check for saved session
+                const sessionRes = await fetch('/app/session');
+                const savedSession = await sessionRes.json();
+                if (savedSession) {
+                    document.getElementById('resumeBtn').style.display = 'inline-block';
+                    document.getElementById('resumeBtn').textContent = `Resume (${savedSession})`;
+                    document.getElementById('resumeBtn').onclick = () => {
+                        sessionCode = savedSession;
+                        document.getElementById('login').style.display = 'none';
+                        document.getElementById('app').style.display = 'block';
+                        connectWebSocket();
+                    };
+                }
             } else {
                 document.getElementById('user-info').textContent = '';
                 document.getElementById('authLink').style.display = 'inline';
@@ -443,15 +505,23 @@
             ws.send(JSON.stringify({type: "toggleMode"}));
         };
 
-        document.getElementById("settingsBtn").addEventListener("click", () => {
-            document.getElementById("settings-overlay").classList.add("active");
+        // Show danger zone only if logged in
+        function updateDangerZone() {
+            fetch('/auth/me').then(r => r.json()).then(user => {
+                document.getElementById('dangerZone').style.display = user ? 'flex' : 'none';
+                document.getElementById('dangerZone').style.flexDirection = 'column';
+                document.getElementById('dangerZone').style.gap = '0.5rem';
+            });
+        }
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('settings-overlay').classList.add('active');
+            updateDangerZone();
         });
 
         document.getElementById("closeSettings").addEventListener("click", () => {
             document.getElementById("settings-overlay").classList.remove("active");
         });
-
-
 
         document.getElementById("saveSettings").addEventListener("click", () => {
             const workDuration = parseFloat(document.getElementById("workDuration").value);
@@ -465,22 +535,73 @@
             localStorage.setItem("soundEnabled", soundEnabled);
             localStorage.setItem("notificationsEnabled", notificationsEnabled);
 
-            // Send to server
-            ws.send(JSON.stringify({
-                type: "settings",
-                workDuration: workDuration,
-                breakDuration: breakDuration
-            }));
-
+            // Send to server if logged in
             fetch('/app/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workDuration, breakDuration, soundEnabled, notificationsEnabled })
             });
 
+            // Send to server only if connected
+            if (ws && ws.readyState == WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "settings",
+                    workDuration: workDuration,
+                    breakDuration: breakDuration
+                }));
+            }
+
             // Close overlay
             document.getElementById("settings-overlay").classList.remove("active");
         });
+
+        document.getElementById('menuSettingsBtn').addEventListener('click', () => {
+            document.getElementById('settings-overlay').classList.add('active');
+            updateDangerZone();
+        });
+
+        document.getElementById('deleteDataBtn').onclick = async () => {
+            if (!confirm('Delete all your Bananadoro data? This cannot be undone.')) return;
+
+            await fetch('/app/data', { method: 'DELETE' });
+
+            // Reset client settings to defaults
+            localStorage.setItem('workDuration', 25);
+            localStorage.setItem('breakDuration', 5);
+            localStorage.setItem('soundEnabled', true);
+            localStorage.setItem('notificationsEnabled', true);
+
+            document.getElementById('workDuration').value = 25;
+            document.getElementById('breakDuration').value = 5;
+            document.getElementById('soundEnabled').checked = true;
+            document.getElementById('notificationsEnabled').checked = true;
+
+            alert('Data deleted and reset to defaults.');
+        };
+
+        document.getElementById('deleteAccountBtn').onclick = async () => {
+            if (!confirm('Delete your entire account? This cannot be undone.')) return;
+            if (!confirm('Are you really sure? All data will be lost forever.')) return;
+
+            await fetch('/app/data', { method: 'DELETE' });
+
+            await fetch('/auth/account', { method: 'DELETE' });
+            alert('Account deleted.');
+            window.location.reload();
+        };
+
+        document.getElementById('homeBtn').onclick = () => {
+            // Close websocket
+            if (ws) ws.close();
+            sessionCode = null;
+
+            // Show login, hide app
+            document.getElementById('login').style.display = 'flex';
+            document.getElementById('app').style.display = 'none';
+
+            // Reset title
+            document.title = 'Bananadoro Timer';
+        };
     </script>
 </body>
 </html>

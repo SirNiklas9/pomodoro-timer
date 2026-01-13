@@ -3,7 +3,7 @@ import { getCookie, setCookie } from 'hono/cookie'
 import {lucia} from "./lucia";
 import { generateId } from 'lucia'
 import { db } from '../db'
-import { users, nativeAccounts, oauthAccounts } from "./schema";
+import {users, nativeAccounts, oauthAccounts, sessions} from "./schema";
 import { eq } from "drizzle-orm";
 import { discord } from "./oauth";
 
@@ -189,6 +189,26 @@ auth.get('/discord/callback', async (c) => {
     setCookie(c, cookie.name, cookie.value, cookie.attributes)
 
     return c.redirect('/')
+})
+
+auth.delete('/account', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName)
+    if (!sessionId) return c.json({ error: 'Not logged in' }, 401)
+
+    const { session, user } = await lucia.validateSession(sessionId)
+    if (!session) return c.json({ error: 'Not logged in' }, 401)
+
+    // Delete auth data
+    await db.delete(oauthAccounts).where(eq(oauthAccounts.userId, user.id))
+    await db.delete(nativeAccounts).where(eq(nativeAccounts.userId, user.id))
+    await db.delete(sessions).where(eq(sessions.userId, user.id))
+    await db.delete(users).where(eq(users.id, user.id))
+
+    // Clear cookie
+    const cookie = lucia.createBlankSessionCookie()
+    setCookie(c, cookie.name, cookie.value, cookie.attributes)
+
+    return c.json({ success: true })
 })
 
 export default auth
