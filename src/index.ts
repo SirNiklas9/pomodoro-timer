@@ -53,6 +53,11 @@ const server = Bun.serve({
             });
         }
 
+        // Auth routes before index.html
+        if (url.pathname.startsWith("/auth")) {
+            return app.fetch(req)
+        }
+
         return new Response(file("./public/index.html"), {
             headers: {"content-type": "text/html",},
         });
@@ -206,8 +211,3 @@ setInterval(() => {
 }, 1000);
 
 console.log(`Listening on http://0.0.0.0:${server.port}`);
-
-export default {
-    port: 3001,
-    fetch: app.fetch,
-}
