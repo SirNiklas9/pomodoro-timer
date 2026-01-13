@@ -2,7 +2,8 @@
 
 import { file } from "bun";
 import { ServerWebSocket } from "bun";
-import * as crypto from "node:crypto";
+import { Hono } from 'hono'
+import { authRoutes } from './auth'
 
 const clients = new Set<ServerWebSocket>();
 
@@ -16,12 +17,14 @@ interface Session {
     clients: Set<ServerWebSocket<unknown>>;
 }
 
-let workTime = 25 * 60;
-let breakTime = 5 * 60;
-
 const sessions = new Map<string, Session>();
 const socketToSession = new Map<ServerWebSocket<unknown>, string>();
 
+// Server for Authentication
+const app = new Hono()
+app.route('/auth', authRoutes)
+
+// Server for Pomodoro
 const server = Bun.serve({
     port: 3000,
     hostname: "0.0.0.0",
@@ -203,3 +206,8 @@ setInterval(() => {
 }, 1000);
 
 console.log(`Listening on http://0.0.0.0:${server.port}`);
+
+export default {
+    port: 3001,
+    fetch: app.fetch,
+}

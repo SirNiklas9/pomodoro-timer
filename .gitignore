@@ -15,3 +15,5 @@ yarn-error.log*
 *.dm
 output-metadata.json
 /android/bananadoro
+/.env
+/bananadoro.db
