@@ -9,7 +9,7 @@ export const users = sqliteTable('users', {
 
 export const sessions = sqliteTable('sessions', {
     id: text('id').primaryKey(),
-    userId: text('userId').notNull().references(() => users.id),
+    userId: text('user_id').notNull().references(() => users.id),
     expiresAt: integer('expires_at').notNull(),
 })
 

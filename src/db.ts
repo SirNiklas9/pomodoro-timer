@@ -2,4 +2,54 @@ import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { Database } from 'bun:sqlite'
 
 const sqlite = new Database('bananadoro.db')
+
+// Create tables on startup
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    expires_at INTEGER NOT NULL
+  );
+  
+  CREATE TABLE IF NOT EXISTS oauth_accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    provider_username TEXT,
+    created_at INTEGER NOT NULL
+  );
+  
+  CREATE TABLE IF NOT EXISTS native_accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    email TEXT NOT NULL UNIQUE,
+    username TEXT,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  
+  CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY REFERENCES users(id),
+    work_duration INTEGER DEFAULT 25,
+    break_duration INTEGER DEFAULT 5,
+    sound_enabled INTEGER DEFAULT 1,
+    notifications_enabled INTEGER DEFAULT 1,
+    updated_at INTEGER NOT NULL
+  );
+  
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    user_id TEXT PRIMARY KEY REFERENCES users(id),
+    session_code TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+`)
+
 export const db = drizzle(sqlite)
