@@ -24,6 +24,10 @@ const socketToSession = new Map<ServerWebSocket<unknown>, string>();
 const app = new Hono()
 app.route('/auth', authRoutes)
 
+// App Setup
+import appRoutes from './app/routes'
+app.route('/app', appRoutes)
+
 // Server for Pomodoro
 const server = Bun.serve({
     port: 3000,
@@ -55,6 +59,10 @@ const server = Bun.serve({
 
         // Auth routes before index.html
         if (url.pathname.startsWith("/auth")) {
+            return app.fetch(req)
+        }
+
+        if (url.pathname.startsWith("/app")) {
             return app.fetch(req)
         }
 

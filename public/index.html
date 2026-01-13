@@ -395,6 +395,22 @@
                 document.getElementById('user-info').innerHTML = `${user.username} <span style="opacity: 0.6;">(${user.provider})</span> `;
                 document.getElementById('authLink').style.display = 'none';
                 document.getElementById('signOutLink').style.display = 'inline';
+
+                // Load settings from server
+                const settingsRes = await fetch('/app/settings');
+                const settings = await settingsRes.json();
+
+                if (settings) {
+                    document.getElementById('workDuration').value = settings.workDuration;
+                    document.getElementById('breakDuration').value = settings.breakDuration;
+                    document.getElementById('soundEnabled').checked = settings.soundEnabled;
+                    document.getElementById('notificationsEnabled').checked = settings.notificationsEnabled;
+
+                    localStorage.setItem('workDuration', settings.workDuration);
+                    localStorage.setItem('breakDuration', settings.breakDuration);
+                    localStorage.setItem('soundEnabled', settings.soundEnabled);
+                    localStorage.setItem('notificationsEnabled', settings.notificationsEnabled);
+                }
             } else {
                 document.getElementById('user-info').textContent = '';
                 document.getElementById('authLink').style.display = 'inline';
@@ -455,6 +471,12 @@
                 workDuration: workDuration,
                 breakDuration: breakDuration
             }));
+
+            fetch('/app/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workDuration, breakDuration, soundEnabled, notificationsEnabled })
+            });
 
             // Close overlay
             document.getElementById("settings-overlay").classList.remove("active");
