@@ -22,11 +22,33 @@ auth.get('/me', async (c) => {
         return c.json(user)
     }
 
-    return c.json(user)
+    // Get OAuth account for username
+    const [oauth] = await db.select().from(oauthAccounts).where(eq(oauthAccounts.userId, user.id))
+
+    if (oauth) {
+        return c.json({
+            id: user.id,
+            email: user.email,
+            username: oauth?.providerUsername ?? null,
+            provider: oauth?.provider ?? null
+        })
+    }
+
+    // Get native account for username
+    const [native] = await db
+        .select()
+        .from(nativeAccounts)
+        .where(eq(nativeAccounts.userId, user.id))
+
+    return c.json({
+        id: user.id,
+        username: native?.username ?? native?.email,
+        provider: 'native'
+    })
 })
 
 auth.post('/register', async (c) => {
-    const { email, password } = await c.req.json()
+    const { email, password, username } = await c.req.json()
 
     // Hash the password
     const passwordHash = await Bun.password.hash(password)
@@ -46,6 +68,7 @@ auth.post('/register', async (c) => {
         id: generateId(15),
         userId: userId,
         email: email,
+        username: username,
         passwordHash: passwordHash,
         createdAt: now,
     })
@@ -155,6 +178,7 @@ auth.get('/discord/callback', async (c) => {
             userId: userId,
             provider: 'discord',
             providerUserId: discordUser.id,
+            providerUsername: discordUser.username,
             createdAt: now,
         })
     }
