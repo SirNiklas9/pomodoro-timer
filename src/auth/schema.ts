@@ -30,3 +30,21 @@ export const nativeAccounts = sqliteTable('native_accounts', {
     passwordHash: text('password_hash').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
+
+export const otpCodes = sqliteTable('otp_codes', {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    code: text('code').notNull(),
+    type: text('type').notNull(), // 'login' | 'oauth_mobile'
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    metadata: text('metadata'),
+})
+
+export const totpSecrets = sqliteTable('totp_secrets', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id),
+    secret: text('secret').notNull(),
+    verified: integer('verified', { mode: 'boolean' }).default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})

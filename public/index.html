@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="style.css?v=2.0.0">
+    <link rel="stylesheet" href="style.css?v=2.1.0">
     <link rel="icon" href="/images/BananadoroLogo.png" type="image/png">
     <title>Bananadoro Timer</title>
+    <style>
+        #oauthCodeVerifyBtn {
+        }
+    </style>
 </head>
 <body>
     <img src="/images/BananadoroLogo.png" alt="BananadoroLogo" style="width: 150px; margin-bottom: 1rem;">
@@ -83,6 +87,8 @@
             <button id="saveSettings">Save</button>
             <button id="closeSettings">Cancel</button>
 
+            <button id="totpSettingsBtn" style="font-size: 0.85rem;">Enable 2FA</button>
+
             <details id="dangerZone" style="display: none;">
 
                 <hr style="border-color: #444; margin: 1rem 0;">
@@ -106,41 +112,113 @@
         <div id="auth-panel">
             <h3 id="auth-title">Sign In</h3>
 
-            <input type="text" id="authUsername" placeholder="Username">
-            <input type="email" id="authEmail" placeholder="Email">
-            <input type="password" id="authPassword" placeholder="Password">
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">Sign in to sync your sessions across devices</p>
 
-            <button id="authSubmit">Sign In</button>
-            <a href="#" id="authSwitch" style="color: #f4d03f; font-size: 0.8rem; text-align: center;">Need an account? Register</a>
+            <button id="authDiscord" class="oauth-btn" style="width: 100%; border-radius: 50px; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+                Continue with Discord
+            </button>
 
-            <div style="display: flex; align-items: center; gap: 1rem; opacity: 0.5;">
+            <div style="display: flex; align-items: center; gap: 1rem; margin: 1rem 0;">
                 <hr style="flex: 1; border-color: #444;">
-                <span style="font-size: 0.8rem;">or</span>
+                <span style="opacity: 0.6; font-size: 0.8rem;">or</span>
                 <hr style="flex: 1; border-color: #444;">
             </div>
 
-            <div style="display: flex; justify-content: center; gap: 1rem;">
-                <button id="authDiscord" class="oauth-btn" title="Continue with Discord">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                    </svg>
-                </button>
-            </div>
+            <button id="authOtp" style="width: 100%;">Continue with Email</button>
 
-            <button id="closeAuth" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
+            <button id="closeAuth" style="background: none; border: 1px solid #666; color: #666; margin-top: 0.5rem;">Cancel</button>
         </div>
     </div>
 
-    <div id="setpassword-overlay">
-        <div id="setpassword-panel">
-            <h3>Set a Password</h3>
-            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">This lets you login on mobile devices</p>
+    <!-- Register Overlay -->
+    <div id="register-overlay">
+        <div id="register-panel">
+            <h3>Create Account</h3>
 
-            <input type="email" id="setPasswordEmail" placeholder="Email" disabled style="opacity: 0.6;">
-            <input type="password" id="setPasswordPassword" placeholder="Password">
-            <input type="password" id="setPasswordConfirm" placeholder="Confirm Password">
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">We'll send you a verification code</p>
 
-            <button id="setPasswordSubmit">Set Password</button>
+            <input type="text" id="registerUsername" placeholder="Username">
+            <input type="email" id="registerEmail" placeholder="Email">
+
+            <button id="registerBtn">Create Account</button>
+
+            <a href="#" id="registerLoginLink" style="color: #f4d03f; font-size: 0.8rem; text-align: center; margin-top: 0.5rem;">Already have an account? Sign In</a>
+
+            <button id="closeRegister" style="background: none; border: 1px solid #666; color: #666; margin-top: 0.5rem;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- OTP Login Overlay -->
+    <div id="otp-overlay">
+        <div id="otp-panel">
+            <h3 id="otp-title">Sign In with Email</h3>
+
+            <div id="otp-email-step">
+                <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">We'll send you a code</p>
+                <input type="email" id="otpEmail" placeholder="Email">
+                <button id="otpRequestBtn">Send Code</button>
+            </div>
+
+            <div id="otp-code-step" style="display: none;">
+                <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">Check your email for the code</p>
+                <input type="email" id="otpEmailDisplay" disabled style="opacity: 0.6;">
+                <input type="text" id="otpCode" placeholder="Enter code" maxlength="6" style="text-transform: uppercase; letter-spacing: 0.3em;">
+                <button id="otpVerifyBtn">Verify</button>
+                <a href="#" id="otpResend" style="color: #f4d03f; font-size: 0.8rem; text-align: center;">Resend code</a>
+            </div>
+
+            <button id="closeOtp" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- TOTP Setup Overlay -->
+    <div id="totp-setup-overlay">
+        <div id="totp-setup-panel">
+            <h3>Setup Two-Factor Auth</h3>
+
+            <div id="totp-qr-step">
+                <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">Scan this QR code with your authenticator app</p>
+                <div id="totp-qr" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;"></div>
+                <p style="font-size: 0.75rem; opacity: 0.6;">Or enter manually:</p>
+                <code id="totp-secret" style="font-size: 0.8rem; background: #333; padding: 0.5rem; border-radius: 4px; word-break: break-all;"></code>
+            </div>
+
+            <div id="totp-verify-step" style="margin-top: 1rem;">
+                <input type="text" id="totpSetupCode" placeholder="Enter 6-digit code" maxlength="6">
+                <button id="totpEnableBtn">Enable 2FA</button>
+            </div>
+
+            <button id="closeTotpSetup" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- OAuth Code Entry Overlay (Mobile) -->
+    <div id="oauth-code-overlay">
+        <div id="oauth-code-panel">
+            <h3>Enter Your Code</h3>
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">Enter the code shown in your browser</p>
+
+            <input type="text" id="oauthCode" placeholder="Enter code" maxlength="6" style="text-transform: uppercase; letter-spacing: 0.3em;">
+
+            <button id="oauthCodeVerifyBtn">Verify</button>
+            <button id="closeOauthCode" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- TOTP Verify Overlay (during login) -->
+    <div id="totp-verify-overlay">
+        <div id="totp-verify-panel">
+            <h3>Two-Factor Authentication</h3>
+            <p style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 1rem;">Enter the code from your authenticator app</p>
+
+            <input type="text" id="totpLoginCode" placeholder="Enter 6-digit code" maxlength="6">
+            <input type="hidden" id="totpUserId">
+
+            <button id="totpVerifyLoginBtn">Verify</button>
+            <button id="closeTotpVerify" style="background: none; border: 1px solid #666; color: #666;">Cancel</button>
         </div>
     </div>
 
@@ -394,44 +472,20 @@
             document.getElementById('auth-overlay').classList.remove('active');
         };
 
-        document.getElementById('authSwitch').onclick = () => {
-            isRegisterMode = !isRegisterMode;
-            document.getElementById('authLink').textContent = isRegisterMode ? 'Register' : 'Sign In';
-            document.getElementById('authSubmit').textContent = isRegisterMode ? 'Register' : 'Sign In';
-            document.getElementById('authSwitch').textContent = isRegisterMode ? 'Have an account? Sign In' : 'Need an account? Register';
-            document.getElementById('authUsername').style.display = isRegisterMode ? 'block' : 'none';
-        };
+        // Discord OAuth - handle mobile differently
+        document.getElementById('authDiscord').onclick = () => {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                // Mobile: open in system browser with mobile flag
+                window.open('/auth/discord?mobile=true', '_system');
 
-        document.getElementById('authSubmit').onclick = async () => {
-            const email = document.getElementById('authEmail').value;
-            const password = document.getElementById('authPassword').value;
-            const username = document.getElementById('authUsername').value;
-
-            const endpoint = isRegisterMode ? '/auth/register' : '/auth/login';
-            const body = isRegisterMode
-                ? { email, password, username }
-                : { email, password };
-
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
+                // Show code entry overlay
                 document.getElementById('auth-overlay').classList.remove('active');
-                checkAuth();
+                document.getElementById('oauth-code-overlay').classList.add('active');
             } else {
-                alert(data.error || 'Something went wrong');
+                // Web/Desktop: normal redirect
+                window.location.href = '/auth/discord';
             }
         };
-
-        document.getElementById('authDiscord').onclick = () => {
-            window.location.href = '/auth/discord';
-        };
-
 
         document.getElementById('signOutLink').onclick = async (e) => {
             e.preventDefault();
@@ -517,6 +571,102 @@
             mode = mode === "work" ? "break" : "work";
             ws.send(JSON.stringify({type: "toggleMode"}));
         };
+
+        // Open OTP overlay from auth panel
+        document.getElementById('authOtp').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('auth-overlay').classList.remove('active');
+            document.getElementById('otp-overlay').classList.add('active');
+        };
+
+        document.getElementById('oauthCodeVerifyBtn').onclick = async () => {
+            const code = document.getElementById('oauthCode').value;
+
+            if (!code) {
+                alert('Please enter code');
+                return;
+            }
+
+            const res = await fetch('/auth/otp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('oauth-code-overlay').classList.remove('active');
+                document.getElementById('oauthCode').value = '';
+                checkAuth();
+            } else {
+                alert(data.error || 'Invalid code');
+            }
+        };
+
+        document.getElementById('closeOauthCode').onclick = () => {
+            document.getElementById('oauth-code-overlay').classList.remove('active');
+        };
+
+        // Register flow
+        let registerEmail = '';
+        let registerUsername = '';
+
+        document.getElementById('registerBtn').onclick = async () => {
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+
+            if (!username || !email) {
+                alert('Please enter username and email');
+                return;
+            }
+
+            const res = await fetch('/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, requireOtp: true })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                registerEmail = email;
+                registerUsername = username;
+
+                // Close register, open OTP verify
+                document.getElementById('register-overlay').classList.remove('active');
+                document.getElementById('otp-overlay').classList.add('active');
+                document.getElementById('otp-title').textContent = 'Verify Your Email';
+                document.getElementById('otp-email-step').style.display = 'none';
+                document.getElementById('otp-code-step').style.display = 'block';
+                document.getElementById('otpEmailDisplay').value = email;
+                otpEmail = email;
+            } else {
+                alert(data.error || 'Something went wrong');
+            }
+        };
+
+        // Back to sign in from register
+        document.getElementById('registerLoginLink').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('register-overlay').classList.remove('active');
+            document.getElementById('auth-overlay').classList.add('active');
+        };
+
+        document.getElementById('closeRegister').onclick = () => {
+            document.getElementById('register-overlay').classList.remove('active');
+        };
+
+        // Update TOTP status when opening settings
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('settings-overlay').classList.add('active');
+            updateDangerZone();
+            updateTotpStatus();
+        });
+
+        document.getElementById('menuSettingsBtn').addEventListener('click', () => {
+            document.getElementById('settings-overlay').classList.add('active');
+            updateDangerZone();
+            updateTotpStatus();
+        });
 
         // Show danger zone only if logged in
         function updateDangerZone() {
@@ -607,53 +757,10 @@
         const params = new URLSearchParams(window.location.search);
         const authType = params.get('auth');
 
-        if (authType === 'new') {
-            const email = params.get('email');
-            document.getElementById('setPasswordEmail').value = email;
-            document.getElementById('setpassword-overlay').classList.add('active');
-            history.replaceState({}, '', '/');
-        } else if (authType === 'success') {
+        if (authType === 'success') {
             history.replaceState({}, '', '/');
             checkAuth();
         }
-
-        document.getElementById('setPasswordSubmit').onclick = async () => {
-            const email = document.getElementById('setPasswordEmail').value;
-            const password = document.getElementById('setPasswordPassword').value;
-            const confirm = document.getElementById('setPasswordConfirm').value;
-
-            if (!password) {
-                alert('Please enter a password');
-                return;
-            }
-            if (password !== confirm) {
-                alert('Passwords do not match');
-                return;
-            }
-            if (password.length < 8) {
-                alert('Password must be at least 8 characters');
-                return;
-            }
-
-            const res = await fetch('/auth/set-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById('setpassword-overlay').classList.remove('active');
-                checkAuth();
-            } else {
-                alert(data.error || 'Something went wrong');
-            }
-        };
-
-        document.getElementById('setPasswordSkip').onclick = () => {
-            document.getElementById('setpassword-overlay').classList.remove('active');
-            checkAuth();
-        };
 
         document.getElementById('homeBtn').onclick = () => {
             // Close websocket
@@ -668,9 +775,197 @@
             document.title = 'Bananadoro Timer';
         };
 
-        // Hide Discord OAuth on mobile - not supported
-        if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-            document.getElementById('authDiscord').style.display = 'none';
+        // ============ OTP Login ============
+
+        let otpEmail = '';
+
+        document.getElementById('otpRequestBtn').onclick = async () => {
+            const email = document.getElementById('otpEmail').value;
+            if (!email) {
+                alert('Please enter your email');
+                return;
+            }
+
+            console.log('Requesting OTP for:', email);
+
+            const res = await fetch('/auth/otp/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            console.log('Response status:', res.status);
+            const data = await res.json();
+            console.log('Response data:', data);
+
+            if (data.success) {
+                otpEmail = email;
+                document.getElementById('otpEmailDisplay').value = email;
+                document.getElementById('otp-email-step').style.display = 'none';
+                document.getElementById('otp-code-step').style.display = 'block';
+            } else {
+                alert(data.error || 'Something went wrong');
+            }
+        };
+
+        document.getElementById('otpVerifyBtn').onclick = async () => {
+            const code = document.getElementById('otpCode').value;
+            if (!code) {
+                alert('Please enter the code');
+                return;
+            }
+
+            const res = await fetch('/auth/otp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                document.getElementById('otp-overlay').classList.remove('active');
+                resetOtpForm();
+                checkAuth();
+            } else {
+                alert(data.error || 'Invalid code');
+            }
+        };
+
+        document.getElementById('otpResend').onclick = async (e) => {
+            e.preventDefault();
+            const res = await fetch('/auth/otp/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: otpEmail })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert('Code resent!');
+            } else {
+                alert(data.error || 'Something went wrong');
+            }
+        };
+
+        document.getElementById('closeOtp').onclick = () => {
+            document.getElementById('otp-overlay').classList.remove('active');
+            resetOtpForm();
+        };
+
+        function resetOtpForm() {
+            otpEmail = '';
+            document.getElementById('otpEmail').value = '';
+            document.getElementById('otpCode').value = '';
+            document.getElementById('otp-email-step').style.display = 'block';
+            document.getElementById('otp-code-step').style.display = 'none';
+        }
+
+        // ============ TOTP Setup ============
+
+        document.getElementById('totpEnableBtn').onclick = async () => {
+            const code = document.getElementById('totpSetupCode').value;
+            if (!code || code.length !== 6) {
+                alert('Please enter a 6-digit code');
+                return;
+            }
+
+            const res = await fetch('/auth/totp/enable', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('totp-setup-overlay').classList.remove('active');
+                alert('Two-factor authentication enabled!');
+                updateTotpStatus();
+            } else {
+                alert(data.error || 'Invalid code');
+            }
+        };
+
+        document.getElementById('closeTotpSetup').onclick = () => {
+            document.getElementById('totp-setup-overlay').classList.remove('active');
+        };
+
+        async function setupTotp() {
+            const res = await fetch('/auth/totp/setup', {
+                method: 'POST'
+            });
+
+            const data = await res.json();
+            if (data.secret && data.qrUrl) {
+                document.getElementById('totp-secret').textContent = data.secret;
+                // Generate QR code using a simple API
+                document.getElementById('totp-qr').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data.qrUrl)}" alt="QR Code">`;
+                document.getElementById('totp-setup-overlay').classList.add('active');
+            } else {
+                alert(data.error || 'Could not setup 2FA');
+            }
+        }
+
+        // ============ TOTP Verify (during login) ============
+
+        document.getElementById('totpVerifyLoginBtn').onclick = async () => {
+            const code = document.getElementById('totpLoginCode').value;
+            const userId = document.getElementById('totpUserId').value;
+
+            if (!code || code.length !== 6) {
+                alert('Please enter a 6-digit code');
+                return;
+            }
+
+            const res = await fetch('/auth/totp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, code })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('totp-verify-overlay').classList.remove('active');
+                checkAuth();
+            } else {
+                alert(data.error || 'Invalid code');
+            }
+        };
+
+        document.getElementById('closeTotpVerify').onclick = () => {
+            document.getElementById('totp-verify-overlay').classList.remove('active');
+        };
+
+        // ============ TOTP Status in Settings ============
+
+        async function updateTotpStatus() {
+            const res = await fetch('/auth/totp/status');
+            const data = await res.json();
+
+            const totpBtn = document.getElementById('totpSettingsBtn');
+            if (totpBtn) {
+                totpBtn.textContent = data.enabled ? 'Disable 2FA' : 'Enable 2FA';
+                totpBtn.onclick = data.enabled ? disableTotp : setupTotp;
+            }
+        }
+
+        async function disableTotp() {
+            const code = prompt('Enter your authenticator code to disable 2FA:');
+            if (!code) return;
+
+            const res = await fetch('/auth/totp/disable', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert('Two-factor authentication disabled');
+                updateTotpStatus();
+            } else {
+                alert(data.error || 'Invalid code');
+            }
         }
     </script>
 </body>

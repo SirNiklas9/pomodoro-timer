@@ -50,6 +50,24 @@ sqlite.exec(`
     session_code TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS otp_codes (
+                                           id TEXT PRIMARY KEY,
+                                           email TEXT NOT NULL,
+                                           code TEXT NOT NULL,
+                                           type TEXT NOT NULL,
+                                           expires_at INTEGER NOT NULL,
+                                           created_at INTEGER NOT NULL,
+                                           metadata TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS totp_secrets (
+                                              id TEXT PRIMARY KEY,
+                                              user_id TEXT NOT NULL REFERENCES users(id),
+      secret TEXT NOT NULL,
+      verified INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+      );
 `)
 
 export const db = drizzle(sqlite)

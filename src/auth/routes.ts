@@ -3,11 +3,20 @@ import { getCookie, setCookie } from 'hono/cookie'
 import {lucia} from "./lucia";
 import { generateId } from 'lucia'
 import { db } from '../db'
-import {users, nativeAccounts, oauthAccounts, sessions} from "./schema";
-import { eq } from "drizzle-orm";
+import {users, nativeAccounts, oauthAccounts, sessions, otpCodes, totpSecrets} from "./schema";
+import {and, eq, gt} from "drizzle-orm";
 import { discord } from "./oauth";
+import { generateSecret, verify, generateURI } from 'otplib';
+import { sendOTPEmail } from '../lib/email';
+
+// Generate a 6-character OTP code
+function generateOTP(): string {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 const auth = new Hono()
+
+// ============ Native ROUTES ============
 
 auth.get('/me', async (c) => {
     const sessionId = getCookie(c, lucia.sessionCookieName)
@@ -48,14 +57,60 @@ auth.get('/me', async (c) => {
 })
 
 auth.post('/register', async (c) => {
-    const { email, password, username } = await c.req.json()
+    const { email, password, username, requireOtp = true } = await c.req.json()
 
-    // Hash the password
-    const passwordHash = await Bun.password.hash(password)
+    if (!email || !username) {
+        return c.json({ error: 'Email and username required' }, 400)
+    }
 
-    // Create user
-    const userId = generateId(15)
+    // Check if email already exists
+    const [existingUser] = await db.select().from(users).where(eq(users.email, email))
+    if (existingUser) {
+        return c.json({ error: 'Email already registered' }, 400)
+    }
+
+    // Check if username already taken
+    const [existingUsername] = await db.select().from(nativeAccounts).where(eq(nativeAccounts.username, username))
+    if (existingUsername) {
+        return c.json({ error: 'Username already taken' }, 400)
+    }
+
     const now = new Date()
+
+    // If OTP required, send code and wait for verification
+    if (requireOtp) {
+        await db.delete(otpCodes).where(eq(otpCodes.email, email))
+
+        const code = generateOTP()
+        const expiresAt = new Date(now.getTime() + 10 * 60 * 1000)
+
+        const metadata: { username: string; passwordHash?: string } = { username }
+        if (password) {
+            metadata.passwordHash = await Bun.password.hash(password)
+        }
+
+        await db.insert(otpCodes).values({
+            id: generateId(15),
+            email: email,
+            code: code,
+            type: 'register',
+            expiresAt: expiresAt,
+            createdAt: now,
+            metadata: JSON.stringify(metadata)
+        })
+
+        try {
+            await sendOTPEmail(email, code)
+        } catch (err) {
+            console.error('Email failed:', err);
+            console.log(`OTP for ${email}: ${code}`);
+        }
+
+        return c.json({ success: true, requiresVerification: true })
+    }
+
+    // No OTP - create account immediately
+    const userId = generateId(15)
 
     await db.insert(users).values({
         id: userId,
@@ -69,7 +124,7 @@ auth.post('/register', async (c) => {
         userId: userId,
         email: email,
         username: username,
-        passwordHash: passwordHash,
+        passwordHash: password ? await Bun.password.hash(password) : '',
         createdAt: now,
     })
 
@@ -78,7 +133,7 @@ auth.post('/register', async (c) => {
     const cookie = lucia.createSessionCookie(session.id)
     setCookie(c, cookie.name, cookie.value, cookie.attributes)
 
-    return c.json({ success: true })
+    return c.json({ success: true, requiresVerification: false })
 })
 
 auth.post('/set-password', async (c) => {
@@ -165,8 +220,12 @@ auth.post('/logout', async (c) => {
     return c.json({ success: true })
 })
 
+// ============ OAuth ROUTES ============
+
 auth.get('/discord', async (c) => {
-    const state = generateId(15)
+    const isMobile = c.req.query('mobile') === 'true'
+    const state = isMobile ? `${generateId(15)}_mobile` : generateId(15)
+
     const url = discord.createAuthorizationURL(state, null, ['identify', 'email'])
 
     setCookie(c, 'oauth_state', state, {
@@ -180,12 +239,17 @@ auth.get('/discord', async (c) => {
 
 auth.get('/discord/callback', async (c) => {
     const code = c.req.query('code')
-    const state = c.req.query('state')
+    const state = c.req.query('state') || ''
     const storedState = getCookie(c, 'oauth_state')
+    const isMobile = state.endsWith('_mobile')
 
-    // Verify state matches
-    if (!code || state !== storedState) {
+    // Skip state validation for mobile (different browser context)
+    if (!isMobile && state !== storedState) {
         return c.json({ error: 'Invalid state' }, 400)
+    }
+
+    if (!code) {
+        return c.json({ error: 'No code provided' }, 400)
     }
 
     // Exchange code for tokens
@@ -202,18 +266,47 @@ auth.get('/discord/callback', async (c) => {
         .from(oauthAccounts)
         .where(eq(oauthAccounts.providerUserId, discordUser.id))
 
+    // For mobile: generate code and show it, don't create session
+    if (isMobile) {
+        const otpCode = generateOTP()
+        const now = new Date()
+        const expiresAt = new Date(now.getTime() + 10 * 60 * 1000)
+
+        await db.insert(otpCodes).values({
+            id: generateId(15),
+            email: discordUser.email,
+            code: otpCode,
+            type: 'oauth_mobile',
+            expiresAt: expiresAt,
+            createdAt: now,
+            metadata: JSON.stringify({
+                provider: 'discord',
+                providerUserId: discordUser.id,
+                providerUsername: discordUser.username,
+                existingUserId: existingOAuth?.userId || null
+            })
+        })
+
+        // Show page with code (user types this into app)
+        return c.html(`
+            <html>
+            <body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: white;">
+                <div style="text-align: center;">
+                    <h2>Your login code</h2>
+                    <p style="font-size: 48px; font-weight: bold; letter-spacing: 8px; color: #f4d03f;">${otpCode}</p>
+                    <p>Enter this code in the app</p>
+                </div>
+            </body>
+            </html>
+        `)
+    }
+
+    // Desktop: normal flow
     let userId: string
 
     if (existingOAuth) {
         // Existing user, just log them in
         userId = existingOAuth.userId
-
-        // Create session
-        const session = await lucia.createSession(userId, {})
-        const cookie = lucia.createSessionCookie(session.id)
-        setCookie(c, cookie.name, cookie.value, cookie.attributes)
-
-        return c.redirect('/?auth=success')
     } else {
         // New user, create account
         userId = generateId(15)
@@ -234,15 +327,15 @@ auth.get('/discord/callback', async (c) => {
             providerUsername: discordUser.username,
             createdAt: now,
         })
+    }
 
         // Create session
         const session = await lucia.createSession(userId, {})
         const cookie = lucia.createSessionCookie(session.id)
         setCookie(c, cookie.name, cookie.value, cookie.attributes)
 
-        // NEW USER - prompt for password
-        return c.redirect('/?auth=new&email=' + encodeURIComponent(discordUser.email))
-    }
+        // NEW USER - just log them in
+        return c.redirect('/?auth=success')
 })
 
 auth.delete('/account', async (c) => {
@@ -264,5 +357,357 @@ auth.delete('/account', async (c) => {
 
     return c.json({ success: true })
 })
+
+// ============ OTP ROUTES ============
+
+// Request OTP - sends code to email
+auth.post('/otp/request', async (c) => {
+    const { email } = await c.req.json();
+
+    if (!email) {
+        return c.json({ error: 'Email required' }, 400);
+    }
+
+    // Delete any existing OTPs for this email
+    await db.delete(otpCodes).where(eq(otpCodes.email, email));
+
+    // Generate new OTP
+    const code = generateOTP();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+
+    await db.insert(otpCodes).values({
+        id: generateId(15),
+        email: email,
+        code: code,
+        type: 'login',
+        expiresAt: expiresAt,
+        createdAt: now,
+    });
+
+    // Try to send email, but don't crash if it fails
+    try {
+        // In production, send email:
+        await sendOTPEmail(email, code);
+    } catch (err) {
+        console.error('Email failed:', err);
+        console.log(`OTP for ${email}: ${code}`);
+    }
+
+    return c.json({ success: true });
+});
+
+// Verify OTP - logs user in
+auth.post('/otp/verify', async (c) => {
+    const { code } = await c.req.json();
+
+    if (!code) {
+        return c.json({ error: 'Code required' }, 400);
+    }
+
+    // Find valid OTP
+    const [otp] = await db
+        .select()
+        .from(otpCodes)
+        .where(
+            and(
+                eq(otpCodes.code, code.toUpperCase()),
+                gt(otpCodes.expiresAt, new Date())
+            )
+        );
+
+    if (!otp) {
+        return c.json({ error: 'Invalid or expired code' }, 401);
+    }
+
+    // Delete used OTP
+    await db.delete(otpCodes).where(eq(otpCodes.id, otp.id));
+
+    const now = new Date();
+    const email = otp.email;
+
+    // Handle OAuth mobile flow
+    switch (otp.type) {
+        case 'oauth_mobile': {
+            if (!otp.metadata) return c.json({ error: 'Invalid OTP data' }, 400);
+
+            const { provider, providerUserId, providerUsername, existingUserId } = JSON.parse(otp.metadata);
+            let userId: string;
+
+            if (existingUserId) {
+                userId = existingUserId;
+            } else {
+                userId = generateId(15);
+
+                await db.insert(users).values({
+                    id: userId,
+                    email: email,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+
+                await db.insert(oauthAccounts).values({
+                    id: generateId(15),
+                    userId: userId,
+                    provider: provider,
+                    providerUserId: providerUserId,
+                    providerUsername: providerUsername,
+                    createdAt: now,
+                });
+            }
+
+            const session = await lucia.createSession(userId, {});
+            const cookie = lucia.createSessionCookie(session.id);
+            setCookie(c, cookie.name, cookie.value, cookie.attributes);
+
+            return c.json({ success: true });
+        }
+
+        case 'register': {
+            if (!otp.metadata) return c.json({ error: 'Invalid OTP data' }, 400);
+
+            const { username, passwordHash } = JSON.parse(otp.metadata);
+            const userId = generateId(15);
+
+            await db.insert(users).values({
+                id: userId,
+                email: email,
+                createdAt: now,
+                updatedAt: now,
+            });
+
+            await db.insert(nativeAccounts).values({
+                id: generateId(15),
+                userId: userId,
+                email: email,
+                username: username,
+                passwordHash: passwordHash || '',
+                createdAt: now,
+            });
+
+            const session = await lucia.createSession(userId, {});
+            const cookie = lucia.createSessionCookie(session.id);
+            setCookie(c, cookie.name, cookie.value, cookie.attributes);
+
+            return c.json({ success: true });
+        }
+
+        case 'login':
+        default: {
+            let [user] = await db.select().from(users).where(eq(users.email, email));
+
+            if (!user) {
+                const userId = generateId(15);
+
+                await db.insert(users).values({
+                    id: userId,
+                    email: email,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+
+                // Create native account with email as username
+                await db.insert(nativeAccounts).values({
+                    id: generateId(15),
+                    userId: userId,
+                    email: email,
+                    username: email.split('@')[0],
+                    passwordHash: '',
+                    createdAt: now,
+                });
+
+                [user] = await db.select().from(users).where(eq(users.id, userId));
+            }
+
+            const session = await lucia.createSession(user.id, {});
+            const cookie = lucia.createSessionCookie(session.id);
+            setCookie(c, cookie.name, cookie.value, cookie.attributes);
+
+            return c.json({ success: true });
+        }
+    }
+});
+
+// ============ TOTP ROUTES ============
+
+// Setup TOTP - generates secret and QR code URL
+auth.post('/totp/setup', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName);
+    if (!sessionId) return c.json({ error: 'Not logged in' }, 401);
+
+    const { session, user } = await lucia.validateSession(sessionId);
+    if (!session) return c.json({ error: 'Not logged in' }, 401);
+
+    // Check if already has TOTP
+    const [existing] = await db
+        .select()
+        .from(totpSecrets)
+        .where(eq(totpSecrets.userId, user.id));
+
+    if (existing?.verified) {
+        return c.json({ error: 'TOTP already enabled' }, 400);
+    }
+
+    // Delete any unverified secrets
+    await db.delete(totpSecrets).where(eq(totpSecrets.userId, user.id));
+
+    // Generate new secret
+    const secret = generateSecret();
+
+    await db.insert(totpSecrets).values({
+        id: generateId(15),
+        userId: user.id,
+        secret: secret,
+        verified: false,
+        createdAt: new Date(),
+    });
+
+    // Generate QR code URL
+    const qrUrl = generateURI({
+        issuer: 'BananaLabs',
+        label: user.email ?? user.id,
+        secret: secret,
+    });
+
+    return c.json({
+        secret: secret,
+        qrUrl: qrUrl,
+    });
+});
+
+// Verify and enable TOTP
+auth.post('/totp/enable', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName);
+    if (!sessionId) return c.json({ error: 'Not logged in' }, 401);
+
+    const { session, user } = await lucia.validateSession(sessionId);
+    if (!session) return c.json({ error: 'Not logged in' }, 401);
+
+    const { code } = await c.req.json();
+
+    if (!code) {
+        return c.json({ error: 'Code required' }, 400);
+    }
+
+    // Get unverified secret
+    const [totpRecord] = await db
+        .select()
+        .from(totpSecrets)
+        .where(
+            and(
+                eq(totpSecrets.userId, user.id),
+                eq(totpSecrets.verified, false)
+            )
+        );
+
+    if (!totpRecord) {
+        return c.json({ error: 'No TOTP setup in progress' }, 400);
+    }
+
+    // Verify code
+    const isValid = await verify({ secret: totpRecord.secret, token: code });
+
+    if (!isValid) {
+        return c.json({ error: 'Invalid code' }, 401);
+    }
+
+    // Mark as verified
+    await db
+        .update(totpSecrets)
+        .set({ verified: true })
+        .where(eq(totpSecrets.id, totpRecord.id));
+
+    return c.json({ success: true });
+});
+
+// Verify TOTP during login
+auth.post('/totp/verify', async (c) => {
+    const { userId, code } = await c.req.json();
+
+    if (!userId || !code) {
+        return c.json({ error: 'User ID and code required' }, 400);
+    }
+
+    // Get verified secret
+    const [totpRecord] = await db
+        .select()
+        .from(totpSecrets)
+        .where(
+            and(
+                eq(totpSecrets.userId, userId),
+                eq(totpSecrets.verified, true)
+            )
+        );
+
+    if (!totpRecord) {
+        return c.json({ error: 'TOTP not enabled' }, 400);
+    }
+
+    // Verify code
+    const isValid = await verify({ secret: totpRecord.secret, token: code });
+
+    if (!isValid) {
+        return c.json({ error: 'Invalid code' }, 401);
+    }
+
+    // Create session
+    const session = await lucia.createSession(userId, {});
+    const cookie = lucia.createSessionCookie(session.id);
+    setCookie(c, cookie.name, cookie.value, cookie.attributes);
+
+    return c.json({ success: true });
+});
+
+// Disable TOTP
+auth.post('/totp/disable', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName);
+    if (!sessionId) return c.json({ error: 'Not logged in' }, 401);
+
+    const { session, user } = await lucia.validateSession(sessionId);
+    if (!session) return c.json({ error: 'Not logged in' }, 401);
+
+    const { code } = await c.req.json();
+
+    // Verify current TOTP before disabling
+    const [totpRecord] = await db
+        .select()
+        .from(totpSecrets)
+        .where(eq(totpSecrets.userId, user.id));
+
+    if (!totpRecord) {
+        return c.json({ error: 'TOTP not enabled' }, 400);
+    }
+
+    const isValid = await verify({ secret: totpRecord.secret, token: code });
+
+    if (!isValid) {
+        return c.json({ error: 'Invalid code' }, 401);
+    }
+
+    await db.delete(totpSecrets).where(eq(totpSecrets.userId, user.id));
+
+    return c.json({ success: true });
+});
+
+// Check if user has TOTP enabled
+auth.get('/totp/status', async (c) => {
+    const sessionId = getCookie(c, lucia.sessionCookieName);
+    if (!sessionId) return c.json({ enabled: false });
+
+    const { session, user } = await lucia.validateSession(sessionId);
+    if (!session) return c.json({ enabled: false });
+
+    const [totpRecord] = await db
+        .select()
+        .from(totpSecrets)
+        .where(
+            and(
+                eq(totpSecrets.userId, user.id),
+                eq(totpSecrets.verified, true)
+            )
+        );
+
+    return c.json({ enabled: !!totpRecord });
+});
 
 export default auth
