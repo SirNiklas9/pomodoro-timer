@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { Database } from 'bun:sqlite'
 
-const sqlite = new Database('bananadoro.db')
+const sqlite = new Database('/app/data/bananadoro.db')
 
 // Create tables on startup
 sqlite.exec(`
