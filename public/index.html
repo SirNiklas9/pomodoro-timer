@@ -334,9 +334,15 @@
                 if (data.type == 'error') {
                     alert(data.message);
 
+                    // Clear saved session if it doesn't exist anymore
+                    fetch('/app/session', { method: 'DELETE' });
+
                     // Hide login, show app
                     document.getElementById("login").style.display = "block";
                     document.getElementById("app").style.display = "none";
+
+                    // Clear the resume button
+                    document.getElementById('resumeBtn').style.display = 'none';
                 }
 
                 if (data.time == 0 && lastTime !== null && lastTime > 0) {
